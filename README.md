@@ -29,6 +29,15 @@ flowchart LR
 
 The proposed stack is Django 5.2 LTS, server-rendered templates, and SQLite for the round. The team should add runnable setup instructions with the first application scaffold, including how to run migrations, email, and the billing scheduler. No payment gateway is required by the detailed payment-recording scenario.
 
+## What's inside
+
+- **Sales:** customers (CSV import, statements), product variants, per-product tax rules, plans with close/pause/renew controls, quotation templates, quotations emailed and printable, a list and pipeline board, seat changes on live subscriptions with optional prorated adjustment invoices, add-ons.
+- **Billing:** idempotent billing runs (manual, scheduled, or catch-up), optional auto-confirm/auto-email, discounts (fixed/percent, whole subscription or selected products, limits and windows), taxes, bulk confirm/send/remind/cancel, replacement invoices, refunds, dunning reminders, renewal notices.
+- **Money in:** payments by method with notes, quick-payment panel, customer "Pay now" (test-mode checkout; no card data stored), aged receivables.
+- **Finance:** collection meters, MRR/ARR trend, churn and net-new, top customers, billing calendar, CSV exports.
+- **Navigation:** top tabs, Ctrl+K command palette, live notifications, grouped history lists, sortable tables, dark mode, mobile layout.
+- **Trust:** roles, ownership-scoped customer portal, append-only audit log, login throttling, backups, health check.
+
 ## Run it
 
 ```sh
