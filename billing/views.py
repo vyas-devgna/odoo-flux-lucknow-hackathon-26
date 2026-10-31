@@ -61,7 +61,13 @@ def invoice_list(request):
     page = paginate(request, qs)
     groups = reports.group_by_day(list(page.object_list), key="issue_date") if sort.lstrip("-") == "issued" else [{"label": "", "items": list(page.object_list), "total": None}]
     counts = {k: n for k, n in Invoice.objects.exclude(kind="credit_note").values_list("state").annotate(n=Count("id"))}
-    return render(request, "billing/invoice_list.html", {
+    from django.db.models import Sum
+    s = reports.summary()
+    strip = [{"label": "Outstanding", "value": f"₹{s['outstanding']:,.0f}", "sub": f"{s['outstanding_count']} invoices", "href": "?status=outstanding"},
+             {"label": "Overdue", "value": f"₹{s['overdue']:,.0f}", "sub": f"{s['overdue_count']} invoices", "tone": "bad" if s["overdue"] else "", "href": "?status=overdue"},
+             {"label": "Drafts to review", "value": counts.get("draft", 0), "sub": "Confirm to lock and send", "href": "?status=draft"},
+             {"label": "Collected this month", "value": f"₹{s['cash']:,.0f}", "sub": f"{s['payments']} payments", "tone": "ok"}]
+    return render(request, "billing/invoice_list.html", {"strip": strip,
         "groups": groups, "sort": sort, "counts": counts, "page": page, "q": request.GET.get("q", ""), "status": request.GET.get("status", ""),
         "filters": STATUS_FILTERS, "drafts": counts.get("draft", 0), "today": timezone.localdate(), "from_": request.GET.get("from", ""), "to": request.GET.get("to", ""), "title": "Invoices"})
 
@@ -247,7 +253,12 @@ def payment_list(request):
     page = paginate(request, qs)
     groups = reports.group_by_day(list(page.object_list), key="date")
     open_invoices = Invoice.objects.filter(state=Invoice.CONFIRMED).exclude(kind="credit_note").order_by("due_date")[:60]
-    return render(request, "billing/payment_list.html", {
+    s = reports.summary()
+    strip = [{"label": "Received this month", "value": f"₹{s['cash']:,.0f}", "sub": f"{s['payments']} payments", "tone": "ok"},
+             {"label": "To confirm", "value": counts.get("pending", 0), "sub": "Reported by customers", "href": "?status=pending"},
+             {"label": "Failed attempts", "value": counts.get("failed", 0), "sub": "Provider declines and rejections", "tone": "bad" if counts.get("failed") else "", "href": "?status=failed"},
+             {"label": "Refunded this month", "value": f"₹{s['refunds']:,.0f}", "sub": "Net of cash received"}]
+    return render(request, "billing/payment_list.html", {"strip": strip,
         "page": page, "groups": groups, "open_invoices": open_invoices, "today": timezone.localdate(), "pay_methods": [(k, l) for k, l in Payment.METHODS if k != "razorpay"],
         "methods": Payment.METHODS, "method": g.get("method", ""), "status": status, "counts": counts, "total": total, "from_": g.get("from", ""), "to": g.get("to", ""),
         "pay_form": PaymentForm(initial={"date": timezone.localdate()}), "can_pay": request.user.has_cap("finance"), "title": "Payments"})

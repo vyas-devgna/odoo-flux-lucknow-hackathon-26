@@ -3,6 +3,7 @@
 {% if drafts %}<form method="post" action="{% url 'billing:bulk_confirm' %}" data-confirm="Confirm all {{ drafts }} draft invoices?">{% csrf_token %}<button class="chip-btn">{% icon 'check' %}Confirm {{ drafts }} drafts</button></form>{% endif %}
 <a class="chip-btn" hx-boost="false" href="?{% qs export='csv' %}">{% icon 'download' %}CSV</a><a class="btn primary" href="{% url 'billing:runs' %}">{% icon 'play' %}Run billing</a>{% endblock %}
 {% block content %}
+{% include 'partials/strip.html' %}
 <div class="filters"><div class="chips"><a class="chip {% if not status %}on{% endif %}" href="?{% qs status='' page='' %}">All</a>
 {% for k, l in filters %}<a class="chip {% if status == k %}on{% endif %}" href="?{% qs status=k page='' %}">{{ l }}{% for sk, n in counts.items %}{% if sk == k %}<em>{{ n }}</em>{% endif %}{% endfor %}</a>{% endfor %}</div></div>
 <form class="filters" method="get"><input type="hidden" name="status" value="{{ status }}"><div class="search">{% icon 'search' %}<input name="q" value="{{ q }}" placeholder="Invoice, customer or subscription"></div>

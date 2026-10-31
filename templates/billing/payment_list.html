@@ -1,6 +1,6 @@
 {% extends 'base.html' %}{% load ui %}{% block heading %}<h1>Payments</h1><p>{{ page.paginator.count }} payments · {{ total|money }} received (excluding test and failed)</p>{% endblock %}
 {% block actions %}<a class="chip-btn" hx-boost="false" href="{% url 'core:export' 'payments' %}">{% icon 'download' %}CSV</a>{% endblock %}
-{% block content %}<div class="dash"><div class="stack">
+{% block content %}{% include 'partials/strip.html' %}<div class="dash"><div class="stack">
 <div class="filters" style="margin:0"><div class="chips"><a class="chip {% if not status %}on{% endif %}" href="?">All</a><a class="chip {% if status == 'pending' %}on{% endif %}" href="?status=pending">To confirm<em>{{ counts.pending|default:0 }}</em></a><a class="chip {% if status == 'succeeded' %}on{% endif %}" href="?status=succeeded">Received</a><a class="chip {% if status == 'failed' %}on{% endif %}" href="?status=failed">Failed<em>{{ counts.failed|default:0 }}</em></a></div></div>
 <form class="filters" method="get" style="margin:0"><input type="hidden" name="status" value="{{ status }}"><select class="input" name="method" onchange="this.form.requestSubmit()" aria-label="Method"><option value="">All methods</option>{% for k, l in methods %}<option value="{{ k }}" {% if k == method %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
 <input class="input" type="date" name="from" value="{{ from_ }}" aria-label="From"><input class="input" type="date" name="to" value="{{ to }}" aria-label="To"><button class="btn sm">Filter</button></form>

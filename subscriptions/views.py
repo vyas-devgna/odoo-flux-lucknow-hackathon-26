@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.db.models import Count, Q, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -38,7 +39,15 @@ def subscription_list(request):
     counts = dict(Subscription.objects.values_list("state").annotate(n=Count("id")))
     qs, sort = apply_sort(request, qs, {"number": "number", "customer": "customer__name", "start": "start_date", "expiry": "expiry_date", "next": "next_invoice_date", "state": "state"}, "-number")
     states = [(k, l) for k, l in Subscription.STATES if k in ("confirmed", "active", "paused", "closed")]
-    return render(request, "subscriptions/list.html", {
+    from core import reports
+    today = timezone.localdate()
+    soon = Subscription.objects.filter(state="active", expiry_date__gte=today, expiry_date__lte=today + timezone.timedelta(days=30)).count()
+    mrr = reports.mrr_at(today)
+    strip = [{"label": "Active contracts", "value": counts.get("active", 0), "sub": f"{counts.get('paused', 0)} paused"},
+             {"label": "Monthly recurring", "value": f"₹{mrr:,.0f}", "sub": f"ARR ₹{mrr * 12:,.0f}", "href": reverse("core:report_mrr") if request.user.has_cap("finance") else ""},
+             {"label": "Ending in 30 days", "value": soon, "sub": "Renewals to decide", "href": reverse("subscriptions:renewals")},
+             {"label": "Payment exceptions", "value": Subscription.objects.filter(payment_exception=True, state__in=["active", "paused"]).count(), "sub": "Overdue or failed", "tone": "bad", "href": "?flag=exception"}]
+    return render(request, "subscriptions/list.html", {"strip": strip,
         "sort": sort, "page": paginate(request, qs), "q": q, "state": state, "plan": plan, "plans": Plan.objects.all(), "states": states, "counts": counts,
         "total": sum(counts.get(k, 0) for k, _ in states), "exceptions": Subscription.objects.filter(payment_exception=True, state__in=["active", "paused"]).count(),
         "title": "Subscriptions"})
