@@ -121,6 +121,7 @@ _ICONS = {
     "print": '<path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/>',
     "mail": '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 8l9 6 9-6"/>',
     "play": '<path d="M7 4l13 8-13 8z"/>',
+    "search": '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.500-3.500"/>',
     "download": '<path d="M12 3v12M7 11l5 5 5-5M4 21h16"/>',
 }
 

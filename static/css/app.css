@@ -29,7 +29,7 @@ h1{font-size:30px}h2{font-size:18px}h3{font-size:15px}
 .main{min-width:0;padding:8px 8px 40px}
 .top{display:flex;align-items:center;gap:14px;margin-bottom:22px;flex-wrap:wrap}
 .top .grow{flex:1;min-width:200px}.top h1{line-height:1.15}.top p{margin:4px 0 0;color:var(--mute)}
-.burger{display:none}
+.icon-btn.burger{display:none}
 .icon-btn{width:42px;height:42px;border-radius:50%;background:var(--card);border:0;display:grid;place-items:center;cursor:pointer;color:var(--ink);box-shadow:var(--shadow)}
 .icon-btn svg{width:18px;height:18px}
 .search{display:flex;align-items:center;gap:8px;background:var(--card);border-radius:999px;padding:0 16px;height:42px;box-shadow:var(--shadow);min-width:240px}
@@ -115,7 +115,7 @@ textarea.input{height:auto;padding:10px 14px;resize:vertical}select.input.multi{
 @media (max-width:860px){
   .shell{grid-template-columns:1fr;padding:10px}.side{position:fixed;inset:10px auto 10px 10px;width:260px;height:auto;z-index:50;transform:translateX(-120%);transition:.25s}
   body.open .side{transform:none}body.open .drawer-bg{display:block;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40}
-  .burger{display:grid}.g2,.g3,.g4,.form{grid-template-columns:1fr}h1{font-size:24px}.hero .big{font-size:34px}.search{min-width:0;flex:1}
+  .icon-btn.burger{display:grid}.g2,.g3,.g4,.form{grid-template-columns:1fr}h1{font-size:24px}.hero .big{font-size:34px}.search{min-width:0;flex:1}
   .auth{grid-template-columns:1fr}.auth .art{display:none}.main{padding:4px 0 32px}
   .stack-table thead{display:none}.stack-table td{display:flex;justify-content:space-between;gap:12px;padding:8px 16px;border:0}
   .stack-table td::before{content:attr(data-l);color:var(--mute);font-size:12.5px}.stack-table tr{display:block;border-bottom:1px solid var(--line);padding:8px 0}
@@ -127,3 +127,4 @@ textarea.input{height:auto;padding:10px 14px;resize:vertical}select.input.multi{
 .field input[type=checkbox]::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
 .field input[type=checkbox]:checked{background:var(--ok)}.field input[type=checkbox]:checked::after{left:21px}
 .field select[multiple]{height:auto;padding:8px}
+.search svg{width:17px;height:17px;flex:none;color:var(--mute)}

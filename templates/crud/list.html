@@ -3,7 +3,7 @@
 {% block actions %}{% if can_write %}<a class="btn primary" href="{{ res.url_new }}">{% icon 'plus' %}New</a>{% endif %}{% endblock %}
 {% block content %}
 <form class="filters" method="get">
-  {% if res.search %}<div class="search">{% icon 'tag' %}<input name="q" value="{{ q }}" placeholder="Search {{ title|lower }}"></div>{% endif %}
+  {% if res.search %}<div class="search">{% icon 'search' %}<input name="q" value="{{ q }}" placeholder="Search {{ title|lower }}"></div>{% endif %}
   {% for key, choices, val in filters %}<select class="input" name="{{ key }}" onchange="this.form.submit()"><option value="">All {{ key }}s</option>{% for v, l in choices %}<option value="{{ v }}" {% if v == val %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>{% endfor %}
   {% if q %}<a class="btn sm" href="?">Clear</a>{% endif %}
 </form>

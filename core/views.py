@@ -67,7 +67,7 @@ def finance_reports(request):
 @internal_required
 def customer_list(request):
     q = request.GET.get("q", "").strip()
-    qs = Customer.objects.annotate(n_subs=Count("subscriptions", distinct=True))
+    qs = Customer.objects.annotate(n_subs=Count("subscriptions", distinct=True)).order_by("name", "id")
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(company__icontains=q) | Q(email__icontains=q))
     return render(request, "core/customers.html", {"page": paginate(request, qs), "q": q})
