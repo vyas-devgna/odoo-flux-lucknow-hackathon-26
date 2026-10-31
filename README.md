@@ -69,4 +69,4 @@ python e2e/journey.py                                     # real-browser 26-step
 ## Documentation
 
 - [Requirements and acceptance checks](docs/REQUIREMENTS.md) · [Architecture and policies](docs/ARCHITECTURE.md) · [Metric definitions](docs/METRICS.md)
-- [Operations runbook](docs/OPERATIONS.md) · [Performance log](docs/PERFORMANCE.md) · [Implementation plan and known limits](docs/IMPLEMENTATION_PLAN.md)
+- [UI/UX handoff](docs/HANDOFF_UIUX.md) · [Operations runbook](docs/OPERATIONS.md) · [Performance log](docs/PERFORMANCE.md) · [Implementation plan and known limits](docs/IMPLEMENTATION_PLAN.md)
