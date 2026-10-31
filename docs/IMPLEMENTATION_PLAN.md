@@ -4,9 +4,9 @@
 
 The maintained [100-step frontend and 100-step backend execution plan](UIUX_BACKEND_200_STEP_PLAN.md) records the current audit, fixes, independent test evidence, and outstanding work. The milestone table below describes earlier delivery stages, not a certification of completeness.
 
-This pass adds atomic/current-state contract transitions, durable checkout retry receipts, email verification before attaching existing billing records, transactional webhook processing, stricter financial document/payment operations, full credit allocation for eligible reversals, concurrent outbox delivery claims, role-aware search/commands, resilient dialogs/forms/charts, and responsive/theme/accessibility corrections. The supplied print, checkbox, panel-sizing, and richer demo-data screenshots are the next work items.
+This pass adds atomic/current-state contract transitions, durable checkout retry receipts, email verification before attaching existing billing records, transactional webhook processing, stricter financial document/payment operations, full credit allocation for eligible reversals, concurrent outbox delivery claims, role-aware search/commands, resilient dialogs/forms/charts, and responsive/theme/accessibility corrections. The follow-up fixes invoice panel sizing, distinct checkbox states, refund labels, print documents, and realistic additive demo expansion.
 
-Only local checkpoints as `vyas-devgna` are authorized, every 30 minutes during active work. No pushes or deployment.
+Checkpoints use `vyas-devgna`, every 30 minutes during active work. The user subsequently authorized pushing verified commits to `origin/main`; deployment and history rewriting remain unauthorized.
 
 | Milestone | Scope | Status |
 |---|---|---|

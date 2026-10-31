@@ -1,0 +1,68 @@
+/* Print overrides are loaded after the responsive application stylesheet. */
+@page { size: A4 portrait; margin: 10mm 11mm 12mm; }
+@page report-landscape { size: A4 landscape; margin: 9mm 9mm 11mm; }
+
+@media print {
+  html, body { width: auto !important; min-width: 0 !important; overflow: visible !important; background: #fff !important; color: #14161a !important; }
+  html { scrollbar-gutter: auto !important; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .topbar, .subnav, .progress-top, .toasts, .skip, .pagehead .acts, .filters, .pager,
+  .doc-bg, .docview, .pal-bg, dialog,
+  .chips, .chart-table, .ctip, button, .no-print { display: none !important; }
+  .wrap { width: auto !important; max-width: none !important; margin: 0 !important; padding: 0 !important; transform: none !important; transition: none !important; animation: none !important; filter: none !important; }
+  #main { width: auto !important; max-width: none !important; margin: 0 !important; padding: 0 !important; transform: none !important; transition: none !important; animation: none !important; filter: none !important; }
+  .pagehead { display: block !important; margin: 0 0 5mm !important; padding: 0 !important; }
+  .pagehead h1 { font-size: 20pt !important; line-height: 1.1 !important; }
+  .pagehead p { margin-top: 2mm !important; font-size: 9pt !important; }
+  .card { min-width: 0 !important; max-width: none !important; box-shadow: none !important; border-color: #d4d7dd !important; break-inside: avoid; }
+  .dash { display: block !important; width: auto !important; }
+  .dash > .stack { display: block !important; width: auto !important; }
+  .dash > .stack > *, .dash > * { margin: 0 0 4mm !important; }
+  .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 3mm !important; }
+  .kpi { padding: 2mm !important; }
+  .tw { width: 100% !important; max-width: none !important; overflow: visible !important; }
+  table, .stack-table, .compact { display: table !important; width: 100% !important; min-width: 0 !important; table-layout: auto !important; border-collapse: collapse !important; }
+  thead { display: table-header-group !important; }
+  tbody { display: table-row-group !important; }
+  tfoot { display: table-footer-group !important; }
+  tr { display: table-row !important; break-inside: avoid !important; padding: 0 !important; }
+  th, td, .stack-table th, .stack-table td { display: table-cell !important; min-width: 0 !important; padding: 2mm 1.5mm !important; border-bottom: 0.25mm solid #d4d7dd !important; font-size: 7.5pt !important; line-height: 1.25 !important; vertical-align: top !important; }
+  th { font-weight: 700 !important; color: #4b5563 !important; }
+  td::before, th::before { content: none !important; display: none !important; }
+  .right, td.right, th.right { text-align: right !important; }
+  .stack-table th:last-child:has(.sr-only), .stack-table td:last-child:empty { display: none !important; }
+  .stack-table td form, .stack-table td .btn, .stack-table td .icon-btn { display: none !important; }
+  a { color: inherit !important; text-decoration: none !important; }
+  figure.chart { margin: 0 0 4mm !important; padding: 3mm !important; }
+  figure.chart figcaption { display: block !important; min-height: 0 !important; margin: 0 0 2mm !important; }
+  figure.chart figcaption h2 { font-size: 10pt !important; }
+  .chart-box { height: 48mm !important; max-height: 48mm !important; overflow: hidden !important; }
+  .chart-box.sm { height: 36mm !important; max-height: 36mm !important; }
+  .chart-box canvas { display: block !important; width: 100% !important; height: 100% !important; max-width: 100% !important; }
+  .legend { display: flex !important; flex-wrap: wrap !important; gap: 3mm !important; }
+  .legend button { display: inline-flex !important; min-width: 0 !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; color: #4b5563 !important; font-size: 7pt !important; }
+  .stat, .hbar { break-inside: avoid; }
+  .sheet.invoice-doc { width: auto !important; max-width: none !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+  .sheet.invoice-doc .letterhead { padding-bottom: 2mm !important; }
+  .sheet.invoice-doc .co h1 { font-size: 17pt !important; line-height: 1.15 !important; }
+  .sheet.invoice-doc .parties { gap: 4mm !important; margin: 3mm 0 !important; }
+  .sheet.invoice-doc .box { padding: 2.5mm 3mm !important; }
+  .sheet.invoice-doc .box h3 { margin-bottom: 1mm !important; }
+  .sheet.invoice-doc .items { margin-top: 1mm !important; }
+  .sheet.invoice-doc table.items th, .sheet.invoice-doc table.items td { padding: 1.5mm 1mm !important; font-size: 7.5pt !important; }
+  .sheet.invoice-doc .totals-wrap { grid-template-columns: 1fr 68mm !important; gap: 4mm !important; margin-top: 3mm !important; }
+  .sheet.invoice-doc .section { margin-top: 3mm !important; }
+  .sheet.invoice-doc .section h3 { margin-bottom: 1mm !important; }
+  .sheet.invoice-doc .words { margin-top: 3mm !important; padding: 2mm 3mm !important; }
+  .sheet.invoice-doc .sign { gap: 8mm !important; margin-top: 5mm !important; }
+  .sheet.invoice-doc .foot { margin-top: 4mm !important; padding-top: 2mm !important; }
+  body:has(form#rf) { page: report-landscape; }
+  html:has(form#rf), body:has(form#rf), body:has(form#rf) .wrap, body:has(form#rf) #main,
+  body:has(form#rf) .dash { width: 279mm !important; min-width: 279mm !important; max-width: none !important; }
+  body:has(form#rf) .dash { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 4mm !important; align-items: start !important; }
+  body:has(form#rf) .dash > .stack { display: contents !important; }
+  body:has(form#rf) .dash > .stack > .card.flush { grid-column: 1 / -1 !important; }
+  body:has(form#rf) .dash > .stack:has(> figure.chart:only-of-type) > figure.chart,
+  body:has(form#rf) .dash > figure.chart,
+  body:has(form#rf) .dash > .card.flush { grid-column: 1 / -1 !important; }
+}

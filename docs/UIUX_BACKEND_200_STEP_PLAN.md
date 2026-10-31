@@ -140,9 +140,9 @@ Legend: `[ ]` pending; `[x]` executed with evidence in the outcome ledger. An un
 - [x] UX095 Independently inspect workers' mobile screenshots.
 - [x] UX096 Verify staff/customer navigation remains role appropriate.
 - [x] UX097 Verify financial and contract workflows remain discoverable.
-- [ ] UX098 Verify CSS and JS changes preserve printable documents.
-- [ ] UX099 Review the integrated diff for dead controls and accidental churn.
-- [ ] UX100 Record measured results and exact remaining UX limitations.
+- [x] UX098 Verify CSS and JS changes preserve printable documents.
+- [x] UX099 Review the integrated diff for dead controls and accidental churn.
+- [x] UX100 Record measured results and exact remaining UX limitations.
 
 ## Backend: 100 steps
 
@@ -266,15 +266,15 @@ Legend: `[ ]` pending; `[x]` executed with evidence in the outcome ledger. An un
 ### Integration and delivery gate — P
 
 - [x] BE091 Review each worker's patch and reported evidence.
-- [ ] BE092 Run the complete integrated backend suite.
+- [x] BE092 Run the complete integrated backend suite.
 - [x] BE093 Run available concurrency tests and identify DB-specific gaps.
-- [ ] BE094 Verify product-to-invoice-to-payment acceptance journey.
+- [x] BE094 Verify product-to-invoice-to-payment acceptance journey.
 - [x] BE095 Verify rerun billing produces no duplicate ordinary invoice.
 - [x] BE096 Verify another customer is denied access to protected records.
 - [x] BE097 Verify startup and local application health after changes.
-- [ ] BE098 Review final diff for accidental schema/data/dependency changes.
-- [ ] BE099 Update concise working notes with verified fixes and known limits.
-- [ ] BE100 Deliver exact evidence, remaining risks, and local changed-file paths.
+- [x] BE098 Review final diff for accidental schema/data/dependency changes.
+- [x] BE099 Update concise working notes with verified fixes and known limits.
+- [x] BE100 Deliver exact evidence, remaining risks, and local changed-file paths.
 
 ## Outcome ledger
 
@@ -295,7 +295,13 @@ The first three delegated passes used the requested `gpt-6-luna` / `xhigh` confi
 
 ### Follow-up from supplied defect screenshots
 
-Pending: compact and correctly labelled invoice PDFs; report print layouts; compact single-line invoice panels; unambiguous checkbox states; realistic demo data expanded from 52 to 78 subscriptions and 25 to 38 organizations. These are now the next delegated implementation passes. Preserve existing working records while expanding the demo.
+Implemented: compact single-line invoice panels; distinct checked, unchecked and mixed checkbox states with keyboard support and 44px selection targets; theme-aware native date controls; accurate refund labels in staff, portal, printable and PDF documents; short invoice pagination; landscape report printing with restored table columns and chart resizing. The print review caught and corrected stretched chart labels and an offscreen drawer shadow bleeding onto paper. Long documents and detailed reports still paginate normally.
+
+Fresh demo: 78 contracts, 38 organizations, 359 invoices and 336 payment records. The existing working database expanded additively to 80 contracts, 38 organizations, 360 invoices and 336 payment records, retaining its two additional contracts. A backup was saved before expansion. SHA-256 comparisons of all original concrete fields in customer, contract, line, change, acceptance, scheduled-change, invoice, payment and billing-period records passed; a repeat expansion added no duplicates and did not bill existing contracts.
+
+Final evidence: 202 backend tests on SQLite (4 database-specific skips) and PostgreSQL 16.2 (1 SQLite-only skip), all applicable tests passed. Final browser journey 34/34; interaction assertions 43; accessibility 60 scans with no violations. Layout review captured 23 screenshots across desktop/mobile, both themes and selection states. Poppler and Chromium checks cover native print, one-page short invoices, multipage long invoices, refund semantics and escaped PDF text. Backend tests, browser outputs and manual raster review are scoped evidence, not a claim that every possible production environment has been verified.
+
+README refreshed with product introduction, workflows, financial guarantees, setup, seed expansion and operational prerequisites. The enlarged working demo's 26-route cold-report-cache check peaked at 85 ms locally. No live SMTP/provider credentials were used. Verified checkpoints were pushed to origin/main after the user's explicit authorization; no history rewriting or deployment.
 
 ### External and policy boundaries
 

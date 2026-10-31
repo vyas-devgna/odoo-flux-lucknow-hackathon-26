@@ -39,10 +39,10 @@ table.tax{width:100%;border-collapse:collapse;font-size:11px}table.tax th{font-w
 @page{size:A4;margin:14mm 12mm 16mm;@bottom-center{content:"Page " counter(page) " of " counter(pages);font:10px var(--sans);color:#5b616e}}
 @media print{html,body{background:#fff}.desk{padding:0}.sheet{width:auto;min-height:0;margin:0;padding:0;box-shadow:none}.toolbar{display:none}.stamp{position:fixed}}
 @media (max-width:760px){.sheet{padding:20px 16px;min-height:0}.parties,.totals-wrap{grid-template-columns:1fr}.letterhead{flex-direction:column}.doc-title{text-align:left}.items-scroll{overflow-x:auto}table.items{min-width:560px}}
-</style></head>
+</style><link rel="stylesheet" href="{% static 'css/print.css' %}"></head>
 <body class="{% if embed %}embed{% endif %}"><div class="desk">
 <div class="toolbar"><span style="color:#5b616e">{% block doclabel %}{% endblock %}</span><span style="display:flex;gap:8px">{% block toolbar_extra %}{% endblock %}<button onclick="print()">Print</button></span></div>
-<main class="sheet">{% block stamp %}{% endblock %}
+<main class="sheet {% block document_class %}{% endblock %}">{% block stamp %}{% endblock %}
 <header class="letterhead"><div class="co"><h1>{{ company.name }}</h1><p>{{ company.address }}</p><div class="ids">{% if company.tax_id %}Tax ID: <b>{{ company.tax_id }}</b><br>{% endif %}{% if company.email %}{{ company.email }}{% endif %}{% if company.phone %} · {{ company.phone }}{% endif %}</div></div>
 <div class="doc-title"><h2>{% block title_text %}{% endblock %}</h2><div class="no">{% block number %}{% endblock %}</div>{% block status %}{% endblock %}</div></header>
 {% block content %}{% endblock %}

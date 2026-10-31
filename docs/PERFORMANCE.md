@@ -22,6 +22,10 @@ Disposable SQLite database; Intel Core i5-11400H (12 logical CPUs), 15.3 GiB RAM
 
 These are local observations with warm browser/OS caches, not production internet performance or a promised improvement ratio. The pricing regression additionally proves prefetched plan tiers incur zero extra queries when evaluating multiple quantities.
 
+## Expanded working demo
+
+After the safe additive demo expansion: 80 contracts, 38 organizations, 360 invoices and 336 payment records. `perf_check --cold --runs 3` exercised 26 routes on the same local environment; the largest individual response was 85 ms (invoice PDF). The two additional pre-existing contracts were preserved. This smaller dataset check supplements the isolated scale measurements above.
+
 ## Earlier measurements (retained, not rerun in this pass)
 
 Measured with `manage.py perf_check --cold` (full request/response cycle through Django's test client, report cache cleared before every request = worst case). Latencies are server-side medians of 3 runs.

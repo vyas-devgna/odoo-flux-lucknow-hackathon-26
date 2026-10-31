@@ -1,6 +1,7 @@
 """Demo data, built by replaying real months through the real services (so every number reconciles).
 
   seed_demo               idempotent: refuses to run twice
+  seed_demo --expand      safely add the keyed 26-contract demo extension
   seed_demo --reset       development only (DEBUG=1): wipes business data first
   seed_demo --bulk 5000   adds thousands of directly-inserted subscriptions for performance testing
 """
@@ -32,6 +33,29 @@ ORGS = [("Maya Rao", "Acme Retail"), ("Dev Malhotra", "Northwind Traders"), ("Is
         ("Imran Qureshi", "Qureshi Exports"), ("Divya Menon", "Menon Health"), ("Sahil Arora", "Arora Cycles"), ("Pooja Joshi", "Joshi Interiors"), ("Nikhil Rao", "Rao Dental"),
         ("Meera Das", "Das Cloudworks"), ("Yash Tiwari", "Tiwari Media"), ("Ritu Saxena", "Saxena Schools"), ("Farhan Ali", "Ali Couriers"), ("Lakshmi Iyer", "Iyer Tea Estates")]
 
+EXPANSION_PREFIX = "seed-demo:v2:"
+EXPANSION_ORGS = [
+    ("Aditi Verma", "Cedarline Design Co.", "Design", "Indira Nagar, Lucknow"),
+    ("Kabir Sinha", "Riverbend Foods", "Food distribution", "Gomti Nagar, Lucknow"),
+    ("Sana Mirza", "Atlas Field Services", "Field services", "Aliganj, Lucknow"),
+    ("Vihaan Joshi", "Copperleaf Learning", "Education", "Hazratganj, Lucknow"),
+    ("Ananya Bose", "Monsoon Care Network", "Healthcare", "Vibhuti Khand, Lucknow"),
+    ("Reyansh Kulkarni", "Blue Orchard Supply", "Wholesale", "Kanpur Road, Lucknow"),
+    ("Mira Thomas", "Foundry Works India", "Manufacturing", "Amausi, Lucknow"),
+    ("Ibrahim Khan", "Paper Kite Media", "Media", "Gomti Nagar, Lucknow"),
+    ("Tara Chawla", "Northstar Mobility", "Mobility", "Mahanagar, Lucknow"),
+    ("Arjun Bhat", "Civic Thread Studio", "Professional services", "Sushant Golf City, Lucknow"),
+    ("Naina Kapoor", "Sunroom Hospitality", "Hospitality", "Hazratganj, Lucknow"),
+    ("Devika Nair", "Fieldnote Research", "Research", "Jankipuram, Lucknow"),
+    ("Raghav Menon", "Mosaic Trade Partners", "Trade", "Alambagh, Lucknow"),
+]
+
+
+def _expansion_email(index):
+    company = EXPANSION_ORGS[index - 1][1]
+    domain = "".join(ch.lower() if ch.isalnum() else "-" for ch in company).strip("-")
+    return f"accounts@{domain}.test"
+
 
 class Command(BaseCommand):
     help = "Load reproducible demo data (see module docstring)."
@@ -39,8 +63,14 @@ class Command(BaseCommand):
     def add_arguments(self, p):
         p.add_argument("--bulk", type=int, default=0)
         p.add_argument("--reset", action="store_true")
+        p.add_argument("--expand", action="store_true", help="add only the stable demo extension to a recognized demo seed")
 
-    def handle(self, *a, bulk=0, reset=False, **o):
+    def handle(self, *a, bulk=0, reset=False, expand=False, **o):
+        if expand and (bulk or reset):
+            raise CommandError("--expand cannot be combined with --bulk or --reset.")
+        if expand:
+            with override_settings(EMAIL_BACKEND="django.core.mail.backends.dummy.EmailBackend"):
+                return self.expand_existing()
         if bulk:
             return self.bulk(bulk)
         if reset:
@@ -64,7 +94,7 @@ class Command(BaseCommand):
         User.objects.all().delete()
 
     @transaction.atomic
-    def build(self):
+    def build(self, *, include_expansion=True):
         rnd = random.Random(2026)
         today = timezone.localdate()
         co = CompanySettings.get()
@@ -228,6 +258,161 @@ class Command(BaseCommand):
         from billing.models import BillingRun
         BillingRun.objects.filter(trigger="demo-replay").delete()
         BillingRun.objects.create(as_of=today, trigger="scheduler", created=0, finished_at=timezone.now())
+        if include_expansion:
+            self._add_expansion(today, sana, rohit)
+
+    def expand_existing(self):
+        """Add the extension only to the known 52-contract seed; never run global maintenance here."""
+        original_emails = []
+        for name, company in ORGS:
+            slug = company.split()[0].lower().replace("&", "and")
+            original_emails.append("maya@acme.test" if name == "Maya Rao" else f"{name.split()[0].lower()}@{slug}.test")
+        customers = list(Customer.objects.filter(email__in=original_emails))
+        counts = {email: sum(customer.email == email for customer in customers) for email in original_emails}
+        if len(customers) != len(ORGS) or any(counts[email] != 1 for email in original_emails):
+            raise CommandError("--expand requires the original 25-customer demo seed; no records were changed.")
+        seed_customer_ids = [c.pk for c in customers]
+        base_contracts = Subscription.objects.filter(customer_id__in=seed_customer_ids).order_by("pk")
+        if base_contracts.count() < 52:
+            raise CommandError("--expand requires the original 52 demo contracts; no records were changed.")
+
+        keyed_emails = [_expansion_email(i) for i in range(1, 14)]
+        keyed_customers = list(Customer.objects.filter(email__in=keyed_emails))
+        keyed_subs = list(Subscription.objects.filter(notes__startswith=EXPANSION_PREFIX))
+        if keyed_subs:
+            expected_keys = {f"{EXPANSION_PREFIX}org-{org:02d}-contract-{slot}" for org in range(1, 14) for slot in (1, 2)}
+            if ({s.notes for s in keyed_subs} == expected_keys and len(keyed_subs) == 26
+                    and {c.email for c in keyed_customers} == set(keyed_emails)):
+                self.stdout.write(f"Demo expansion already complete: +{len(keyed_subs)} contracts, +{len(keyed_customers)} organizations (no changes).")
+                return
+            raise CommandError("A partial or conflicting demo expansion exists; no records were changed.")
+        if keyed_customers:
+            raise CommandError("Expansion email keys already exist without matching contracts; no records were changed.")
+        with transaction.atomic():
+            before_contracts = Subscription.objects.count()
+            before_customers = Customer.objects.count()
+            sana = User.objects.get(email="staff@brightloop.test")
+            rohit = User.objects.get(email="finance@brightloop.test")
+            self._add_expansion(timezone.localdate(), sana, rohit)
+            self.stdout.write(self.style.SUCCESS(
+                f"Demo expansion added 26 contracts and 13 organizations; totals are "
+                f"{Subscription.objects.count()} contracts and {Customer.objects.count()} organizations "
+                f"(was {before_contracts} and {before_customers})."))
+
+    def _add_expansion(self, today, sana, rohit):
+        """Create additive, keyed demo history through subscription and billing services only."""
+        from core.money import q
+        from subscriptions.models import Subscription as SubModel
+
+        if Subscription.objects.filter(notes__startswith=EXPANSION_PREFIX).exists():
+            return
+        starter = Plan.objects.get(name="Starter", interval="monthly")
+        weekly = Plan.objects.get(name="Weekly Pilot", interval="weekly")
+        daily = Plan.objects.get(name="Daily Trial", interval="daily")
+        business = Plan.objects.get(name="Business", interval="monthly")
+        annual = Plan.objects.get(name="Team Annual", interval="yearly")
+        templates = {t.plan_id: t for t in QuotationTemplate.objects.filter(name__in=("Business + Premium Suite",))}
+
+        org_customers = []
+        for i, (name, company, sector, neighborhood) in enumerate(EXPANSION_ORGS, 1):
+            city, postcode_prefix = (("Lucknow", "226"), ("Kanpur", "208"), ("Prayagraj", "211"), ("Varanasi", "221"))[(i * 7) % 4]
+            area = neighborhood if city == "Lucknow" else ("Civil Lines", "Mall Road", "Sigra", "George Town")[(i * 3) % 4]
+            customer = Customer.objects.create(
+                name=name, company=company, email=_expansion_email(i),
+                phone=f"+91 98{(73100000 + i * 3791):08d}",
+                address=f"{12 + i * 3}, {area}, {city}, Uttar Pradesh {postcode_prefix}{(i * 73) % 1000:03d}",
+                tax_id=f"09{(i * 271828):09d}F1Z{i % 10}", account_manager=sana if i % 2 else rohit,
+                notes=f"{sector} · demo scenario {i:02d}")
+            org_customers.append(customer)
+
+        starter_periods = [4] * 12  # 48 periods, all after the expired spring offer
+        business_periods = [4] * 4  # 16 periods; seats stay below the volume-discount threshold
+        active_specs = ([ (starter, n, 1 + i % 4, "net15") for i, n in enumerate(starter_periods) ]
+                        + [ (business, n, 3 + i, "net30") for i, n in enumerate(business_periods) ]
+                        + [ (weekly, n, 1 + i % 3, "immediate") for i, n in enumerate((6, 6, 6, 8)) ]
+                        + [ (daily, n, 1 + i % 3, "immediate") for i, n in enumerate((7, 7, 7, 7)) ])
+        if len(active_specs) != 24 or sum(n for _, n, _, _ in active_specs) != 118:
+            raise CommandError("Internal demo expansion scenario count is inconsistent.")
+
+        active_subs = []
+        for i, (plan, period_count, quantity, terms) in enumerate(active_specs):
+            customer = org_customers[i // 2]
+            interval = plan.interval
+            start = add_interval(today, interval, -(period_count - 1))
+            start -= timedelta(days=(i % 20) if interval == "monthly" else 0)
+            notes = f"{EXPANSION_PREFIX}org-{i // 2 + 1:02d}-contract-{i % 2 + 1}"
+            sub = subs.create_subscription(customer=customer, plan=plan, start_date=start, user=sana if i % 2 else rohit,
+                                           quantity=quantity, payment_terms=terms, notes=notes)
+            subs.send_quotation(sub, actor=sana)
+            sub = subs.accept(Subscription.objects.get(pk=sub.pk), actor=sana, signed_name=customer.name)
+            if sub.state == SubModel.CONFIRMED:
+                sub = subs.activate(sub, effective=start, actor=sana)
+            active_subs.append((sub, period_count))
+
+        # Two deliberately open quotations round out lifecycle coverage without inventing cash.
+        for slot, plan in ((1, business), (2, annual)):
+            org_index = 12
+            customer = org_customers[org_index]
+            template = templates.get(plan.pk)
+            sub = subs.create_subscription(customer=customer, plan=plan, template=template, user=sana,
+                                           quantity=max(plan.min_quantity, 3 if plan == business else 1),
+                                           notes=f"{EXPANSION_PREFIX}org-13-contract-{slot}")
+            subs.send_quotation(sub, actor=sana)
+
+        expansion_invoice_ids = []
+        for sub, count in active_subs:
+            for index in range(count):
+                start, _ = billing.period_bounds(sub, index)
+                inv = billing.create_invoice_for_period(sub, index, start)
+                billing.confirm_invoice(inv)
+                expansion_invoice_ids.append(inv.pk)
+            sub.periods_billed = count
+            sub.next_invoice_date = add_interval(sub.start_date, sub.plan.interval, count)
+            sub.save(update_fields=["periods_billed", "next_invoice_date"])
+
+        invoices = list(Invoice.objects.filter(pk__in=expansion_invoice_ids).select_related("subscription").order_by("issue_date", "pk"))
+        by_oldest = sorted(invoices, key=lambda inv: (inv.issue_date, inv.pk))
+        full_paid, late_paid, partial, failed = by_oldest[:80], by_oldest[80:90], by_oldest[90:95], by_oldest[95:105]
+        # All cash dates are bounded by the invoice date and today; late items are selected from oldest due dates.
+        for inv in full_paid:
+            pay_date = min(today, inv.issue_date + timedelta(days=2))
+            billing.record_payment(inv, amount=inv.balance, method=("bank", "upi", "card", "cheque")[inv.pk % 4], date=pay_date,
+                                   user=rohit, reference=f"DEMO-EXP-{inv.pk}", idempotency_key=f"{EXPANSION_PREFIX}pay-{inv.pk}")
+        for inv in late_paid:
+            pay_date = min(today, max(inv.issue_date, inv.due_date + timedelta(days=3)))
+            billing.record_payment(inv, amount=inv.balance, method="bank", date=pay_date, user=rohit,
+                                   reference=f"DEMO-EXP-LATE-{inv.pk}", idempotency_key=f"{EXPANSION_PREFIX}late-{inv.pk}")
+        for inv in partial:
+            first_date = min(today, inv.issue_date + timedelta(days=2))
+            amount = q(inv.total / Decimal("2"))
+            billing.record_payment(inv, amount=amount, method="upi", date=first_date, user=rohit,
+                                   reference=f"DEMO-EXP-PART-A-{inv.pk}", idempotency_key=f"{EXPANSION_PREFIX}partial-a-{inv.pk}")
+            second_date = min(today, max(first_date, inv.issue_date + timedelta(days=10)))
+            current = Invoice.objects.get(pk=inv.pk)
+            billing.record_payment(current, amount=current.balance, method="bank", date=second_date, user=rohit,
+                                   reference=f"DEMO-EXP-PART-B-{inv.pk}", idempotency_key=f"{EXPANSION_PREFIX}partial-b-{inv.pk}")
+        for inv in failed:
+            billing.fail_payment(inv, amount=inv.balance, method="razorpay", reason="Card declined by issuer",
+                                 provider="razorpay", provider_ref=f"demo-exp-{inv.pk}", is_test=True)
+
+        # One real mid-period add-on amendment and its paid adjustment, scoped to a new contract.
+        amend_sub = active_subs[0][0]
+        analytics = Product.objects.get(sku="BL-ANALYTICS")
+        change = subs.apply_change(amend_sub, addons={analytics.pk: True}, effective="now", today=today, actor=sana)
+        adjustment = change["document"]
+        if adjustment is None:
+            raise CommandError("Expected an adjustment invoice for the demo add-on amendment.")
+        billing.confirm_invoice(adjustment)
+        billing.record_payment(adjustment, amount=adjustment.total, method="upi", date=today, user=rohit,
+                               reference=f"DEMO-EXP-ADJ-{adjustment.pk}", idempotency_key=f"{EXPANSION_PREFIX}adjustment-{adjustment.pk}")
+
+        # The partial credit is refunded for exactly the same cash amount, after the credit note is issued.
+        credit_source = Invoice.objects.get(pk=full_paid[0].pk)
+        credit_amount = q(credit_source.total / Decimal("2"))
+        credit = billing.issue_credit_note(credit_source, amount=credit_amount, reason="Approved service credit", actor=sana)
+        billing.refund_payment(credit_source, amount=credit_amount, method="bank", date=max(today, credit.issue_date),
+                               note=f"Refund for {credit.number}", user=rohit,
+                               idempotency_key=f"{EXPANSION_PREFIX}refund-{credit_source.pk}")
 
     def _schedule_payment(self, events, inv, beh, rnd, today):
         due = inv.due_date
@@ -259,8 +444,10 @@ class Command(BaseCommand):
             billing.record_payment(inv, amount=amount, method=method, date=day, reference=f"{method.upper()}-{100000 + pk * 37}", user=rohit, idempotency_key=f"demo-{kind}-{pk}")
             if pk % 17 == 0 and kind == "pay":
                 inv.refresh_from_db()
-                cn = billing.issue_credit_note(inv, amount=min(Decimal("250.00"), inv.total / 2), reason="Goodwill credit", actor=sana)
-                billing.refund_payment(inv, amount=min(Decimal("250.00"), inv.amount_paid), method=method, date=day, note="Goodwill refund", user=rohit)
+                credit_amount = min(Decimal("250.00"), inv.total / 2)
+                cn = billing.issue_credit_note(inv, amount=credit_amount, reason="Goodwill credit", actor=sana)
+                billing.refund_payment(inv, amount=min(credit_amount, inv.amount_paid), method=method,
+                                       date=max(day, cn.issue_date), note="Goodwill refund", user=rohit)
             return
         s = Subscription.objects.select_related("plan", "customer").get(pk=pk)
         if s.state != "active":

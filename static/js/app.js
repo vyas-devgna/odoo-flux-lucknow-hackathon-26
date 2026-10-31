@@ -69,7 +69,7 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   const bulk = $('#bulkbar'); if (!bulk) return; const all = $('#cb-all'), boxes = $$('input.cb[name=ids]');
   if (e.target === all) boxes.forEach(b => b.checked = all.checked);
-  if (e.target === all || e.target.matches('input.cb')) { const n = boxes.filter(b => b.checked).length; bulk.classList.toggle('show', n > 0); $('#bulkn').textContent = n; }
+  if (e.target === all || e.target.matches('input.cb')) { const n = boxes.filter(b => b.checked).length; if (all) { all.checked = n > 0 && n === boxes.length; all.indeterminate = n > 0 && n < boxes.length; } bulk.classList.toggle('show', n > 0); $('#bulkn').textContent = n; }
 });
 
 /* ---------- count-up numbers */
@@ -86,6 +86,8 @@ function counters() {
    Spec: 2px lines, bars <= 24px with 4px data-end radius, 2px surface gaps in stacks, hairline solid grid, text in ink
    tokens (never series colour), one tooltip listing every series with a crosshair, legend for >= 2 series, and a table twin. */
 const charts = new Map();
+window.addEventListener('beforeprint', () => charts.forEach(({ chart }, cv) => { chart.stop(); chart.resize(cv.parentElement.clientWidth, cv.parentElement.clientHeight); chart.update('none'); }));
+window.addEventListener('afterprint', () => charts.forEach(({ chart }) => { chart.resize(); chart.update('none'); }));
 motion.addEventListener('change', e => charts.forEach(v => { if (e.matches) v.chart.stop(); v.chart.options.animation = e.matches ? false : { duration: 200, easing: 'easeOutCubic' }; }));
 const tok = n => css('--' + n);
 const fmtMoney = v => '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });

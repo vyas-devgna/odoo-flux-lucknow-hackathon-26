@@ -1,4 +1,5 @@
 {% extends 'documents/base.html' %}{% load ui %}
+{% block document_class %}invoice-doc{% endblock %}
 {% block doctitle %}{{ inv.number }}{% endblock %}{% block doclabel %}{{ inv.number }}{% endblock %}
 {% block toolbar_extra %}{% if pdf_url %}<a href="{{ pdf_url }}">Download PDF</a>{% endif %}{% endblock %}
 {% block stamp %}{% if inv.state == 'paid' and not inv.is_credit_note %}<div class="stamp paid">PAID</div>{% elif inv.state == 'draft' %}<div class="stamp">DRAFT</div>{% elif inv.state == 'cancelled' %}<div class="stamp cancelled">CANCELLED</div>{% endif %}{% endblock %}
@@ -27,10 +28,10 @@
   <tr class="grand"><td>{% if inv.is_credit_note %}Credit total{% else %}Total{% endif %}</td><td>{{ inv.total|money }}</td></tr>
   {% if not inv.is_credit_note %}{% if inv.credited_total %}<tr><td>Credited</td><td>−{{ inv.credited_total|money }}</td></tr>{% endif %}<tr><td>Amount paid</td><td>{{ inv.amount_paid|money }}</td></tr><tr class="due"><td>Balance due</td><td>{{ inv.balance|money }}</td></tr>{% endif %}</table></div>
 <p class="words"><b>Amount in words:</b> {{ inv.total|in_words }}</p>
-{% if payments %}<section class="section"><h3>Payments received</h3><table class="tax"><tr><th>Date</th><th>Method</th><th>Reference</th><th class="r">Amount</th></tr>{% for p in payments %}<tr><td>{{ p.date|date:"d M Y" }}</td><td>{{ p.get_method_display }}</td><td>{{ p.reference|default:"–" }}</td><td class="r">{{ p.amount|money }}</td></tr>{% endfor %}</table></section>{% endif %}
+{% if payments %}<section class="section payment-activity"><h3>Payment activity</h3><table class="tax"><thead><tr><th>Date</th><th>Type</th><th>Method</th><th>Reference</th><th class="r">Amount</th></tr></thead><tbody>{% for p in payments %}<tr><td>{{ p.date|date:"d M Y" }}</td><td>{% if p.amount < 0 %}Refund{% else %}Payment{% endif %}</td><td>{{ p.get_method_display }}</td><td>{{ p.reference|default:"–" }}</td><td class="r">{{ p.amount|money }}</td></tr>{% endfor %}</tbody></table></section>{% endif %}
 {% if company.bank_details and not inv.is_credit_note %}<section class="section"><h3>How to pay</h3><p>{{ company.bank_details }}</p></section>{% endif %}
 {% if company.invoice_terms %}<section class="section"><h3>Terms and conditions</h3><p>{{ company.invoice_terms }}</p></section>{% endif %}
-<div class="sign"><div><b>Received with thanks</b>{{ inv.bill_to_name }}</div><div style="text-align:right"><b>For {{ company.name }}</b>Authorised signatory</div></div>
+<div class="sign"><div>{% if not inv.is_credit_note and inv.state == 'paid' and inv.total > 0 and inv.amount_paid >= inv.total and not inv.credited_total %}<b>Received with thanks</b>{{ inv.bill_to_name }}{% endif %}</div><div style="text-align:right"><b>For {{ company.name }}</b>Authorised signatory</div></div>
 {% endblock %}
 {% block footnote %}{{ company.invoice_footer }} This is a computer-generated document and is valid without a physical signature. Verify the code at right against our records.{% endblock %}
 {% block fingerprint %}Doc ID {{ inv.fingerprint }}{% endblock %}

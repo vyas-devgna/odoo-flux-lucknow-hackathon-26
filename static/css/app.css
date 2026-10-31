@@ -6,6 +6,7 @@
    type     12/16 13/20 14/20 16/24 20/28 28/36 40/44          motion 120 / 200 / 320 ms  */
 @font-face{font-family:"Inter";src:url("../vendor/inter.woff2") format("woff2");font-weight:100 900;font-display:swap}
 :root{
+  color-scheme:light;
   --font:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   /* surfaces + ink */
   --bg:#eceef1;--card:#fff;--ink:#0c0d10;--ink-2:#454a55;--mute:#626877;--line:#eceef2;--hair:#e1e4ea;--soft:#f4f5f8;--soft-2:#eaecf1;
@@ -28,7 +29,7 @@
   --ease:cubic-bezier(.2,.8,.2,1);--ease-spring:cubic-bezier(.34,1.4,.64,1);--d1:120ms;--d2:200ms;--d3:320ms;
   --gutter:24px;--card-p:24px;--rail:clamp(384px,24vw,480px);
 }
-[data-theme=dark]{--bg:#0d0e11;--card:#16181d;--ink:#f3f4f7;--ink-2:#b7bcc8;--mute:#9097a6;--line:#23262e;--hair:#2c303a;--soft:#1d2027;--soft-2:#252932;
+[data-theme=dark]{color-scheme:dark;--bg:#0d0e11;--card:#16181d;--ink:#f3f4f7;--ink-2:#b7bcc8;--mute:#9097a6;--line:#23262e;--hair:#2c303a;--soft:#1d2027;--soft-2:#252932;
   --accent:#4d7dff;--accent-ink:#0d0e11;--accent-hover:color-mix(in srgb,var(--accent) 88%,#fff);--orange:#d9731a;--red:#ff8d6b;
   --ok-bg:#12331f;--ok:#4fd18b;--bad-bg:#401a12;--bad:#ff8d6b;--warn-bg:#3a2d10;--warn:#f3c15d;--info-bg:#182a52;--info:#8fb0ff;--vio-bg:#2b2150;--vio:#b4a2ff;
   --c1:#4d7dff;--c2:#1fa890;--c3:#d9731a;--c4:#c24fb8;--shadow-2:0 1px 2px rgba(0,0,0,.4),0 8px 24px -8px rgba(0,0,0,.5)}
@@ -126,10 +127,18 @@ textarea.input,.field textarea{height:auto;min-height:var(--h-lg);padding:var(--
 .field{display:grid;gap:var(--s2);min-width:0;align-content:start}.field>label{font-size:var(--fs-sm);line-height:var(--lh-sm);font-weight:500;color:var(--ink-2)}.field .help{font-size:var(--fs-xs);line-height:var(--lh-xs);color:var(--mute)}
 .field .errorlist,.errorlist{list-style:none;margin:0;padding:0;color:var(--bad);font-size:var(--fs-sm);line-height:var(--lh-sm)}
 .form{display:grid;gap:var(--s4) var(--s4);grid-template-columns:repeat(2,minmax(0,1fr))}.form .full{grid-column:1/-1}
-.switch,.field input[type=checkbox]{appearance:none;width:40px;height:24px;border-radius:var(--r-pill);background:var(--hair);position:relative;cursor:pointer;transition:background var(--d2) var(--ease);flex:none;border:0;margin:0}
-.switch::after,.field input[type=checkbox]::after{content:"";position:absolute;top:4px;left:4px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform var(--d2) var(--ease-spring);box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.switch:checked,.field input[type=checkbox]:checked{background:var(--ok)}.switch:checked::after,.field input[type=checkbox]:checked::after{transform:translateX(16px)}
-.field.check{grid-template-columns:auto 1fr;align-items:center;gap:var(--s1) var(--s3)}.field.check .help,.field.check .errorlist{grid-column:2}.field.check>label{color:var(--ink);font-size:var(--fs-md);line-height:var(--lh-md)}
+.switch{appearance:none;width:40px;height:24px;border-radius:var(--r-pill);background:var(--hair);position:relative;cursor:pointer;transition:background var(--d2) var(--ease);flex:none;border:0;margin:0}
+.switch::after{content:"";position:absolute;top:4px;left:4px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform var(--d2) var(--ease-spring);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.switch:checked{background:var(--ok)}.switch:checked::after{transform:translateX(16px)}
+input[type=checkbox]:not(.switch){appearance:none;display:inline-grid;place-content:center;width:18px;height:18px;flex:none;margin:0;padding:0;border:1px solid var(--mute);border-radius:4px;background:var(--card);color:var(--accent-ink);cursor:pointer;transition:background var(--d1),border-color var(--d1),box-shadow var(--d1)}
+input[type=checkbox]:not(.switch)::before{content:"";width:8px;height:4px;border:2px solid currentColor;border-top:0;border-right:0;opacity:0;transform:translateY(-1px) rotate(-45deg)}
+input[type=checkbox]:not(.switch):checked,input[type=checkbox]:not(.switch):indeterminate{border-color:var(--accent);background:var(--accent)}
+input[type=checkbox]:not(.switch):checked::before{opacity:1}
+input[type=checkbox]:not(.switch):indeterminate::before{width:8px;height:2px;border:0;background:currentColor;opacity:1;transform:none}
+input[type=checkbox]:not(.switch):hover{border-color:var(--accent)}
+input[type=checkbox]:not(.switch):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input[type=checkbox]:not(.switch):disabled{cursor:not-allowed;opacity:.55}
+.field.check{grid-template-columns:18px minmax(0,1fr);align-items:center;gap:var(--s1) var(--s3)}.field.check .help,.field.check .errorlist{grid-column:2}.field.check>label{display:flex;align-items:center;min-height:var(--h-touch);color:var(--ink);font-size:var(--fs-md);line-height:var(--lh-md);cursor:pointer}
 .field ul{list-style:none;margin:0;padding:0;display:flex;gap:var(--s2);flex-wrap:wrap}.field ul li label{display:flex;align-items:center;gap:var(--s2);min-height:var(--h-md);padding:var(--s2) var(--s3);border:1px solid var(--hair);border-radius:var(--r-sm);cursor:pointer;color:var(--ink);font-size:var(--fs-md);transition:border-color var(--d1),background var(--d1)}
 .field ul li label:has(input:checked){border-color:var(--ink);background:var(--soft)}.field input[type=radio]{accent-color:var(--ink)}
 .field input[type=file]{font:inherit;color:var(--ink-2)}
@@ -177,10 +186,10 @@ a.kpi:hover b{text-decoration:underline;text-underline-offset:4px}
 .hist .who b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hist .who span{display:block;font-size:var(--fs-xs);line-height:var(--lh-xs);color:var(--mute)}
 .amt{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}.amt.in{color:var(--ok)}.amt.out{color:var(--bad)}
 .hist-head{display:grid;grid-template-columns:var(--cols);gap:var(--s3);padding:var(--s2) var(--card-p);font-size:var(--fs-xs);line-height:var(--lh-xs);color:var(--mute);border-bottom:1px solid var(--line);align-items:center}
-.stretch::after{content:"";position:absolute;inset:0;z-index:1}.hist .row input.cb{position:relative;z-index:2}.hist .row:focus-within{background:var(--soft)}
+.stretch::after{content:"";position:absolute;inset:0;z-index:1}.hist .row .cb-hit{position:relative;z-index:2}.hist .row:focus-within{background:var(--soft)}
 .stretch:focus-visible{outline:none}.stretch:focus-visible::after{outline:2px solid var(--accent);outline-offset:-2px;border-radius:var(--r-xs)}
 .bulkbar{display:none;align-items:center;gap:var(--s2);padding:var(--s2) var(--card-p);min-height:48px;background:var(--ink);color:var(--bg);font-size:var(--fs-sm);animation:pop-in var(--d2) var(--ease)}.bulkbar.show{display:flex}.bulkbar .btn{height:var(--h-sm);font-size:var(--fs-xs);background:transparent;color:var(--bg);border-color:rgba(255,255,255,.3)}.bulkbar .btn:hover{background:rgba(255,255,255,.12)}
-input.cb{width:16px;height:16px;accent-color:var(--ink)}
+input.cb{width:18px;height:18px}
 /* ---------- detail pages ---------- */
 .stepper{display:flex;align-items:center;overflow-x:auto;padding:var(--s1) 0}.step{display:flex;align-items:center;gap:var(--s2);font-size:var(--fs-sm);line-height:var(--lh-sm);font-weight:600;color:var(--mute);white-space:nowrap}
 .step i{width:24px;height:24px;border-radius:50%;background:var(--soft-2);display:grid;place-items:center;font-style:normal;font-size:var(--fs-xs);transition:background var(--d2),color var(--d2)}
@@ -253,7 +262,7 @@ dialog .dlg{padding:var(--s6);display:grid;gap:var(--s4)}dialog .dlg p{color:var
 .formset-row td{padding:var(--s2) var(--s1)}.formset-row td:first-child{padding-left:var(--card-p);min-width:176px}.formset-row td:last-child{padding-right:var(--card-p)}.formset-row td:nth-child(2){min-width:128px}
 .formset-row input:not([type=checkbox]):not([type=hidden]),.formset-row select{width:100%;min-width:96px;height:var(--h-sm);border:1px solid var(--hair);background:var(--card);color:var(--ink);border-radius:var(--r-xs);padding:0 var(--s3);font:inherit;font-size:var(--fs-sm);outline:0}
 .formset-row select{padding-right:var(--s8)}.formset-row input:focus,.formset-row select:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
-.formset-row input[type=checkbox]:not(.switch){width:16px;height:16px;accent-color:var(--red)}.formset-row input.switch{width:40px;height:24px;padding:0;min-width:40px}
+.formset-row input[type=checkbox]:not(.switch){width:18px;height:18px}.formset-row input.switch{width:40px;height:24px;padding:0;min-width:40px}
 /* ---------- motion ----------
    One orchestrated moment: the page content settles in once. Everything else answers an action. */
 main{animation:page-in var(--d3) var(--ease)}@keyframes page-in{from{opacity:0;transform:translateY(4px)}}
@@ -287,6 +296,21 @@ figure.chart figcaption{gap:var(--s3)}figure.chart figcaption .sub{margin-right:
 input[type=checkbox],input[type=radio]{margin:0}small{font-size:inherit}
 .field textarea,textarea.input{height:80px;min-height:80px}select[multiple].input,.field select[multiple]{height:96px}
 code{padding:0 var(--s1)}
+/* Invoice detail stacks hug their content even when the neighboring rail is taller. */
+.invoice-detail-layout>.stack{align-content:start}
+/* Invoice selection boxes stay square; the label supplies the mobile hit area. */
+.cb-hit{display:grid;place-items:center;width:44px;height:44px;flex:none;cursor:pointer}
+.hist.invoice-list .hist-head,.hist.invoice-list .row{grid-template-columns:44px 44px minmax(0,1.4fr) minmax(0,1fr) 110px 110px 28px}
+@media(max-width:900px){
+  .hist.invoice-list .hist-head{display:none}
+  .hist.invoice-list .row{grid-template-columns:44px 32px minmax(0,1fr) auto;grid-template-areas:"select avatar customer amount" "select avatar status status";column-gap:var(--s2);row-gap:var(--s1)}
+  .hist.invoice-list .row>.cb-hit{grid-area:select}
+  .hist.invoice-list .row>.logo-c{grid-area:avatar}
+  .hist.invoice-list .row>.who:not(.mid){grid-area:customer}
+  .hist.invoice-list .row>.mid,.hist.invoice-list .row>svg{display:none}
+  .hist.invoice-list .row>.st{grid-area:status;grid-column:auto;justify-self:start}
+  .hist.invoice-list .row>.amt{grid-area:amount;justify-self:end}
+}
 /* ---------- document viewer: the app slides left, the document slides in from the right ---------- */
 .wrap{transition:transform var(--d3) var(--ease),opacity var(--d3) var(--ease),filter var(--d3)}
 body.doc-open{overflow:hidden}body.doc-open .wrap{transform:translateX(-48px) scale(.985);opacity:.5;filter:saturate(.7);pointer-events:none;user-select:none}
