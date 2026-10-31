@@ -18,3 +18,4 @@ test_db.sqlite3
 e2e/out/visual_refinement/
 e2e/out/layout_regressions/
 e2e/out/print_regressions/
+docs/HANDOFF_UIUX.md
