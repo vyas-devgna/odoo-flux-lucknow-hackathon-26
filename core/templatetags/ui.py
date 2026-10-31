@@ -122,6 +122,11 @@ _ICONS = {
     "mail": '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 8l9 6 9-6"/>',
     "play": '<path d="M7 4l13 8-13 8z"/>',
     "search": '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.500-3.500"/>',
+    "sun": '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.900 4.900l1.400 1.400M17.700 17.700l1.400 1.400M2 12h2M20 12h2M4.900 19.100l1.400-1.400M17.700 6.300l1.400-1.400"/>',
+    "bell": '<path d="M6 8a6 6 0 1112 0c0 7 3 8 3 8H3s3-1 3-8M10.300 20a2 2 0 003.400 0"/>',
+    "calendar": '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    "chevron": '<path d="M6 9l6 6 6-6"/>',
+    "right": '<path d="M9 6l6 6-6 6"/>',
     "download": '<path d="M12 3v12M7 11l5 5 5-5M4 21h16"/>',
 }
 
@@ -130,3 +135,45 @@ _ICONS = {
 def icon(name):
     from django.utils.html import mark_safe
     return mark_safe(f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{_ICONS[name]}</svg>')
+
+
+@register.simple_tag
+def notifications(user):
+    """Live counts for the bell. Cheap indexed counts, staff only."""
+    from datetime import timedelta
+
+    from django.db.models import F
+    from django.utils import timezone
+
+    from billing.models import Invoice
+    from subscriptions.models import Subscription
+    if not getattr(user, "is_internal", False):
+        return {"items": [], "total": 0}
+    today = timezone.localdate()
+    spec = [
+        (Invoice.objects.filter(state="confirmed", due_date__lt=today, amount_paid__lt=F("total")).count(), "overdue invoices to chase", "/billing/invoices/?status=overdue", "bad"),
+        (Invoice.objects.filter(state="draft").count(), "draft invoices to review", "/billing/invoices/?status=draft", "go"),
+        (Subscription.objects.filter(state="active", next_invoice_date__lte=today).count(), "subscriptions due for billing", "/billing/runs/", "go"),
+        (Subscription.objects.filter(state="quotation", quote_valid_until__lte=today + timedelta(days=3)).count(), "quotations expiring in 3 days", "/subscriptions/?state=quotation", ""),
+        (Subscription.objects.filter(state="active", expiry_date__gte=today, expiry_date__lte=today + timedelta(days=14)).count(), "subscriptions expiring in 14 days", "/subscriptions/?state=active", ""),
+    ]
+    items = [{"n": n, "text": t, "url": u, "tone": tone} for n, t, u, tone in spec if n]
+    return {"items": items, "total": sum(i["n"] for i in items if i["tone"] in ("bad", "go"))}
+
+
+@register.filter
+def avatar_color(name):
+    palette = ["#7c5cff", "#2f6bff", "#12b76a", "#ff8a1f", "#e5484d", "#0ea5a5", "#c026d3", "#475569"]
+    return palette[sum(map(ord, str(name))) % len(palette)]
+
+
+@register.simple_tag(takes_context=True)
+def sorth(context, key, label, right=False):
+    from django.utils.html import format_html
+    cur = context.get("sort", "")
+    nxt = f"-{key}" if cur == key else key
+    arrow = " ↑" if cur == key else " ↓" if cur == f"-{key}" else ""
+    params = context["request"].GET.copy()
+    params["sort"] = nxt
+    params.pop("page", None)
+    return format_html('<th class="{}"><a href="?{}">{}{}</a></th>', "right" if right else "", params.urlencode(), label, arrow)

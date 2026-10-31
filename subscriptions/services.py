@@ -34,7 +34,7 @@ def create_subscription(*, customer, plan, template=None, start_date=None, expir
         if template:
             for tl in template.lines.select_related("product", "variant"):
                 SubscriptionLine.objects.create(subscription=sub, product=tl.product, variant=tl.variant,
-                                                quantity=max(tl.quantity, 1), unit_price=tl.unit_price, tax=tax)
+                                                quantity=max(tl.quantity, 1), unit_price=tl.unit_price, tax=tl.product.tax or tax)
     return sub
 
 
@@ -113,6 +113,28 @@ def set_addon(sub, product_id, on):
     existing = sub.lines.filter(product=product)
     if on and not existing.exists():
         SubscriptionLine.objects.create(subscription=sub, product=product, quantity=1,
-                                        unit_price=product.sales_price, tax=Tax.default())
+                                        unit_price=product.sales_price, tax=product.tax or Tax.default())
     elif not on:
         existing.delete()
+
+
+def email_quotation(sub, request=None):
+    """Email the quotation to the customer with a link to accept it in the portal (or to sign up first)."""
+    from django.conf import settings
+    from django.core.mail import EmailMessage
+    from django.urls import reverse
+    from core.models import CompanySettings
+    co = CompanySettings.get()
+    link = ""
+    if request is not None:
+        target = "core:portal_subscription" if getattr(sub.customer, "user_id", None) else "accounts:signup"
+        args = [sub.pk] if target == "core:portal_subscription" else []
+        link = f"\nReview and accept it online: {request.build_absolute_uri(reverse(target, args=args))}\n"
+        if target == "accounts:signup":
+            link += f"(Create your account with {sub.customer.email} to see it.)\n"
+    lines = "\n".join(f"  - {l.description} x {l.quantity} @ {settings.CURRENCY_SYMBOL}{l.unit_price}" for l in sub.lines.all())
+    body = (f"Hello {sub.customer.name},\n\nHere is your quotation {sub.number} for the {sub.plan.name} plan "
+            f"({sub.plan.get_interval_display().lower()} billing), valid until {sub.quote_valid_until:%d %b %Y}.\n\n{lines}\n\n"
+            f"Total per period: {settings.CURRENCY_SYMBOL}{sub.total} (incl. tax){link}\nThank you,\n{co.name}")
+    EmailMessage(f"Quotation {sub.number} from {co.name}", body, to=[sub.customer.email],
+                 reply_to=[co.email] if co.email else None).send(fail_silently=False)

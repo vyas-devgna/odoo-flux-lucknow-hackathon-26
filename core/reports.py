@@ -127,3 +127,130 @@ def summary(start=None, end=None, plan=None):
         "by_method": list(pays.values("method").annotate(t=Sum("amount")).order_by("-t")),
         "mrr_rows": mrr, "mrr": sum((r["mrr"] for r in mrr), D0),
     }
+
+
+def aging():
+    """Outstanding balance of confirmed invoices by days past due."""
+    today = timezone.localdate()
+    open_ = Invoice.objects.filter(state=Invoice.CONFIRMED).annotate(bal=BALANCE)
+    buckets = [("Not yet due", None, 0), ("1–30 days", 1, 30), ("31–60 days", 31, 60), ("61–90 days", 61, 90), ("90+ days", 91, None)]
+    out, total = [], D0
+    for label, lo, hi in buckets:
+        qs = open_
+        if lo is None:
+            qs = qs.filter(due_date__gte=today)
+        else:
+            qs = qs.filter(due_date__lte=today - timedelta(days=lo))
+            if hi is not None:
+                qs = qs.filter(due_date__gte=today - timedelta(days=hi))
+        agg = qs.aggregate(t=Sum("bal"), n=Count("id"))
+        out.append({"label": label, "amount": agg["t"] or D0, "count": agg["n"]})
+        total += agg["t"] or D0
+    for b in out:
+        b["pct"] = int(b["amount"] / total * 100) if total else 0
+    return out, total
+
+
+def mrr_trend(n=12):
+    """MRR at each month end from subscription lifetimes, valued at current line prices (approximation: price history is not versioned)."""
+    from django.db.models import Subquery, OuterRef
+    today = timezone.localdate()
+    subs = list(Subscription.objects.filter(activated_at__isnull=False).values("id", "start_date", "closed_at", "plan__interval")
+                .annotate(sub_total=Sum(ExpressionWrapper(F("lines__unit_price") * F("lines__quantity"), output_field=DecimalField(max_digits=14, decimal_places=2)))))
+    months, y, m = [], today.year, today.month
+    for _ in range(n):
+        months.append((y, m))
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+    months.reverse()
+    out, prev = [], D0
+    for (y, m) in months:
+        end = date(y + (m == 12), (m % 12) + 1, 1) - timedelta(days=1)
+        end = min(end, today)
+        mrr, new, churned = D0, 0, 0
+        for s in subs:
+            a = s["start_date"]
+            c = s["closed_at"].astimezone().date() if s["closed_at"] else None
+            if a <= end and (c is None or c > end):
+                mrr += (s["sub_total"] or D0) * Plan.MONTHLY_FACTOR[s["plan__interval"]]
+            if a.year == y and a.month == m:
+                new += 1
+            if c and c.year == y and c.month == m:
+                churned += 1
+        out.append({"label": date(y, m, 1).strftime("%b"), "mrr": mrr, "new": new, "churned": churned, "delta": mrr - prev})
+        prev = mrr
+    return out
+
+
+def top_customers(limit=8):
+    return list(Invoice.objects.exclude(state=Invoice.CANCELLED).values("customer_id", "bill_to_name")
+                .annotate(billed=Sum("total"), paid=Sum("amount_paid")).order_by("-billed")[:limit])
+
+
+def single_line(points, w=640, h=200, pad=(8, 12, 24, 8), key="mrr"):
+    left, top, bottom, right = pad
+    peak = max([p[key] for p in points] + [Decimal(1)])
+    step = (w - left - right) / max(len(points) - 1, 1)
+    pts = [(left + i * step, top + (h - top - bottom) * (1 - float(p[key] / peak))) for i, p in enumerate(points)]
+    return {"w": w, "h": h, "path": smooth_path(pts), "area": smooth_path(pts) + f" L{pts[-1][0]:.1f},{h - bottom} L{pts[0][0]:.1f},{h - bottom} Z",
+            "dots": [{"x": x, "y": y, **p} for (x, y), p in zip(pts, points)], "base": h - bottom,
+            "labels": [{"x": x, "t": p["label"]} for (x, _), p in zip(pts, points)]}
+
+
+def billing_calendar(today=None):
+    """Month grid of invoices due for billing / issued per day, for the heatmap."""
+    import calendar as cal
+    today = today or timezone.localdate()
+    first = today.replace(day=1)
+    days = cal.monthrange(today.year, today.month)[1]
+    issued = dict(Invoice.objects.filter(issue_date__gte=first, issue_date__lte=today.replace(day=days)).values_list("issue_date")
+                  .annotate(n=Count("id")))
+    upcoming = dict(Subscription.objects.filter(state=Subscription.ACTIVE, next_invoice_date__gte=first,
+                                                next_invoice_date__lte=today.replace(day=days)).values_list("next_invoice_date").annotate(n=Count("id")))
+    cells = [{"blank": True} for _ in range(first.weekday())]
+    for d in range(1, days + 1):
+        day = today.replace(day=d)
+        cells.append({"d": d, "issued": issued.get(day, 0), "due": upcoming.get(day, 0), "today": day == today, "past": day < today})
+    return {"cells": cells, "month": first, "issued": sum(issued.values()), "due": sum(upcoming.values())}
+
+
+def activity_feed(limit=14):
+    """Recent invoices and payments merged, newest first (for grouped-by-day history)."""
+    inv = [{"at": i.created_at, "day": i.issue_date, "kind": "invoice", "obj": i, "title": i.bill_to_name, "ref": i.number,
+            "amount": i.total, "state": i.display_state} for i in Invoice.objects.select_related("subscription").order_by("-id")[:limit]]
+    pay = [{"at": p.created_at, "day": p.date, "kind": "payment", "obj": p.invoice, "title": p.invoice.bill_to_name, "ref": p.invoice.number,
+            "amount": p.amount, "state": "paid", "method": p.get_method_display()}
+           for p in Payment.objects.select_related("invoice").order_by("-id")[:limit]]
+    return sorted(inv + pay, key=lambda x: x["at"], reverse=True)[:limit]
+
+
+def group_by_day(rows, key="day"):
+    """[{label, date, items, total}] preserving order; label is Today / Yesterday / '12 Oct'."""
+    today = timezone.localdate()
+    out, idx = [], {}
+    for r in rows:
+        d = r[key] if isinstance(r, dict) else getattr(r, key)
+        if d not in idx:
+            label = "Today" if d == today else "Yesterday" if d == today - timedelta(days=1) else d.strftime("%d %b %Y")
+            idx[d] = {"label": label, "date": d, "items": [], "total": D0}
+            out.append(idx[d])
+        idx[d]["items"].append(r)
+        amt = r["amount"] if isinstance(r, dict) else getattr(r, "total", D0)
+        idx[d]["total"] += amt or D0
+    return out
+
+
+RANGES = [("month", "This month"), ("30d", "Last 30 days"), ("quarter", "This quarter"), ("year", "This year")]
+
+
+def range_dates(key, today=None):
+    today = today or timezone.localdate()
+    if key == "30d":
+        return today - timedelta(days=29), today
+    if key == "quarter":
+        m = 3 * ((today.month - 1) // 3) + 1
+        return date(today.year, m, 1), today
+    if key == "year":
+        return date(today.year, 1, 1), today
+    return today.replace(day=1), today

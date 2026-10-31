@@ -2,54 +2,54 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}{{ title|default:"Overview" }}{% endblock %} · {{ COMPANY }}</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230b0b0d'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='white' stroke-width='3.5'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="{% static 'css/app.css' %}">
 <script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'light'</script>
 </head><body>
-<div class="shell">
-<aside class="side" id="side">
-  <div class="brand"><span class="logo"></span>{{ COMPANY }}</div>
-  {% with n=request.resolver_match.url_name ns=request.resolver_match.namespace %}
-  <nav class="nav">
+<div class="wrap">
+{% with n=request.resolver_match.url_name ns=request.resolver_match.namespace %}
+<header class="topbar">
+  <button class="icon-btn burger" onclick="document.body.classList.toggle('open')" aria-label="Menu">{% icon 'menu' %}</button>
+  <a class="brand" href="{% url 'core:home' %}"><span class="mark"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="10" fill="currentColor"/><circle cx="16" cy="16" r="6.5" fill="none" stroke="var(--bg)" stroke-width="3.4"/><circle cx="23" cy="9" r="2.6" fill="#ff8a1f"/></svg></span><span class="t">{{ COMPANY }}</span></a>
+  <nav class="tabs" id="tabs" aria-label="Main">
   {% if user.is_internal %}
-    <a href="{% url 'core:dashboard' %}" class="{% if n == 'dashboard' %}on{% endif %}">{% icon 'home' %}Overview</a>
-    <a href="{% url 'subscriptions:list' %}" class="{% if ns == 'subscriptions' %}on{% endif %}">{% icon 'repeat' %}Subscriptions</a>
-    <a href="{% url 'billing:list' %}" class="{% if n in 'list detail print' and ns == 'billing' %}on{% endif %}">{% icon 'file' %}Invoices</a>
-    <a href="{% url 'billing:payments' %}" class="{% if n == 'payments' %}on{% endif %}">{% icon 'card' %}Payments</a>
-    <a href="{% url 'core:customers' %}" class="{% if 'customer' in n %}on{% endif %}">{% icon 'users' %}Customers</a>
-    <a href="{% url 'core:reports' %}" class="{% if n == 'reports' %}on{% endif %}">{% icon 'chart' %}Reports</a>
-    <div class="grp">Catalogue</div>
-    <a href="{% url 'catalog:products_list' %}" class="{% if 'products' in n %}on{% endif %}">{% icon 'box' %}Products</a>
-    <a href="{% url 'catalog:plans_list' %}" class="{% if 'plans' in n %}on{% endif %}">{% icon 'layers' %}Plans</a>
-    <a href="{% url 'catalog:templates_list' %}" class="{% if 'templates' in n %}on{% endif %}">{% icon 'file' %}Templates</a>
-    <a href="{% url 'catalog:discounts_list' %}" class="{% if 'discounts' in n %}on{% endif %}">{% icon 'percent' %}Discounts</a>
-    <a href="{% url 'catalog:taxes_list' %}" class="{% if 'taxes' in n %}on{% endif %}">{% icon 'tag' %}Taxes</a>
-    <div class="grp">Operations</div>
-    <a href="{% url 'billing:runs' %}" class="{% if n == 'runs' %}on{% endif %}">{% icon 'clock' %}Billing runs</a>
-    {% if user.is_admin_role %}<a href="{% url 'accounts:team' %}" class="{% if 'team' in n %}on{% endif %}">{% icon 'shield' %}Team</a>
-    <a href="{% url 'core:audit' %}" class="{% if n == 'audit' %}on{% endif %}">{% icon 'clock' %}Audit log</a>
-    <a href="{% url 'core:settings' %}" class="{% if n == 'settings' %}on{% endif %}">{% icon 'tag' %}Settings</a>{% endif %}
+    <a href="{% url 'core:dashboard' %}" class="{% if n == 'dashboard' %}on{% endif %}">Dashboard</a>
+    <a href="{% url 'subscriptions:list' %}" class="{% if ns == 'subscriptions' %}on{% endif %}">Subscriptions</a>
+    <a href="{% url 'billing:list' %}" class="{% if ns == 'billing' and n in 'list detail print' %}on{% endif %}">Invoices</a>
+    <a href="{% url 'billing:payments' %}" class="{% if n == 'payments' %}on{% endif %}">Payments</a>
+    <a href="{% url 'core:customers' %}" class="{% if 'customer' in n %}on{% endif %}">Customers</a>
+    <a href="{% url 'core:reports' %}" class="{% if n == 'reports' %}on{% endif %}">Analytics</a>
+    <details class="{% if ns == 'catalog' %}on{% endif %}"><summary>Catalogue</summary><div class="pop">
+      <a href="{% url 'catalog:products_list' %}">{% icon 'box' %}Products</a><a href="{% url 'catalog:plans_list' %}">{% icon 'layers' %}Plans</a>
+      <a href="{% url 'catalog:templates_list' %}">{% icon 'file' %}Quotation templates</a><a href="{% url 'catalog:discounts_list' %}">{% icon 'percent' %}Discounts</a><a href="{% url 'catalog:taxes_list' %}">{% icon 'tag' %}Taxes</a></div></details>
+    <details class="{% if n in 'runs audit settings team_list' or 'team' in n %}on{% endif %}"><summary>More</summary><div class="pop">
+      <a href="{% url 'billing:runs' %}">{% icon 'clock' %}Billing runs</a>
+      {% if user.is_admin_role %}<a href="{% url 'core:audit' %}">{% icon 'shield' %}Audit log</a><a href="{% url 'accounts:team' %}">{% icon 'users' %}Team</a><a href="{% url 'core:settings' %}">{% icon 'tag' %}Settings</a>{% endif %}
+      <hr><a href="{% url 'core:export' 'subscriptions' %}">{% icon 'download' %}Export subscriptions</a><a href="{% url 'core:export' 'payments' %}">{% icon 'download' %}Export payments</a></div></details>
   {% else %}
-    <a href="{% url 'core:portal' %}" class="{% if n == 'portal' %}on{% endif %}">{% icon 'home' %}Home</a>
-    <a href="{% url 'core:portal_subscriptions' %}" class="{% if 'portal_subscription' in n %}on{% endif %}">{% icon 'repeat' %}My subscriptions</a>
-    <a href="{% url 'core:portal_invoices' %}" class="{% if 'portal_invoice' in n %}on{% endif %}">{% icon 'file' %}My invoices</a>
-    <a href="{% url 'core:portal_profile' %}" class="{% if n == 'portal_profile' %}on{% endif %}">{% icon 'users' %}Billing details</a>
+    <a href="{% url 'core:portal' %}" class="{% if n == 'portal' %}on{% endif %}">Home</a>
+    <a href="{% url 'core:portal_subscriptions' %}" class="{% if 'portal_subscription' in n %}on{% endif %}">Subscriptions</a>
+    <a href="{% url 'core:portal_invoices' %}" class="{% if 'portal_invoice' in n or n == 'portal_pay' %}on{% endif %}">Invoices</a>
+    <a href="{% url 'core:portal_profile' %}" class="{% if n == 'portal_profile' %}on{% endif %}">Billing details</a>
   {% endif %}
-  </nav>{% endwith %}
-  <div class="me"><span class="avatar">{{ user.name|default:user.email|initials }}</span>
-    <a class="who" href="{% url 'accounts:password_change' %}" title="Change password"><b>{{ user.name|default:user.email }}</b><span>{{ user.get_role_display }} · Password</span></a>
-    <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button title="Sign out" aria-label="Sign out">{% icon 'out' %}</button></form></div>
-</aside>
-<div class="drawer-bg" onclick="document.body.classList.remove('open')"></div>
-<main class="main">
-  <div class="top">
-    <button class="icon-btn burger" onclick="document.body.classList.add('open')" aria-label="Menu">{% icon 'menu' %}</button>
-    <div class="grow">{% block heading %}<h1>{{ title }}</h1>{% endblock %}</div>
-    {% if user.is_internal %}<form action="{% url 'core:search' %}" class="search" role="search">{% icon 'search' %}<input name="q" placeholder="Search customers, subscriptions, invoices" aria-label="Search"></form>{% endif %}
-    {% block actions %}{% endblock %}
-    <button class="icon-btn" id="theme" title="Toggle theme" aria-label="Toggle theme">{% icon 'moon' %}</button>
+  </nav>
+  <div class="tools">
+    {% if user.is_internal %}<button class="cmd" id="cmdk" type="button">{% icon 'search' %}<span>Search or jump to…</span><kbd>Ctrl K</kbd></button>
+    {% notifications user as nt %}<details><summary class="icon-btn" aria-label="Notifications">{% icon 'bell' %}{% if nt.total %}<i class="dot"></i>{% endif %}</summary><div class="pop">
+      {% for i in nt.items %}<a href="{{ i.url }}"><b>{{ i.n }}</b> {{ i.text }}</a>{% empty %}<a href="#" style="pointer-events:none">You're all caught up.</a>{% endfor %}</div></details>{% endif %}
+    <div class="seg" role="group" aria-label="Theme"><button data-t="light" aria-label="Light">{% icon 'sun' %}</button><button data-t="dark" aria-label="Dark">{% icon 'moon' %}</button></div>
+    <details><summary class="avatar" title="{{ user.name|default:user.email }}">{{ user.name|default:user.email|initials }}</summary><div class="pop">
+      <a href="#" style="pointer-events:none;display:block"><b>{{ user.name|default:user.email }}</b><br><small style="margin:0">{{ user.email }} · {{ user.get_role_display }}</small></a><hr>
+      <a href="{% url 'accounts:password_change' %}">{% icon 'shield' %}Change password</a>
+      <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<a href="#" onclick="this.closest('form').submit();return false">{% icon 'out' %}Sign out</a></form></div></details>
   </div>
-  {% if messages %}<div class="msgs">{% for m in messages %}<div class="msg {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}</div>{% endif %}
-  {% block content %}{% endblock %}
+</header>
+{% endwith %}
+{% if messages %}<div class="msgs">{% for m in messages %}<div class="msg {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}</div>{% endif %}
+<main>
+<div class="pagehead"><div>{% block crumbs %}{% endblock %}{% block heading %}<h1>{{ title }}</h1>{% endblock %}</div><div class="acts">{% block actions %}{% endblock %}</div></div>
+{% block content %}{% endblock %}
 </main></div>
+{% if user.is_internal %}<div class="pal-bg" id="pal"><div class="pal"><input id="palq" placeholder="Jump to a page, or search customers, subscriptions, invoices…" autocomplete="off"><ul id="pall"></ul></div></div>{% endif %}
 <script src="{% static 'js/app.js' %}"></script>{% block scripts %}{% endblock %}
 </body></html>

@@ -13,7 +13,9 @@ class Invoice(models.Model):
     DRAFT, CONFIRMED, PAID, CANCELLED = "draft", "confirmed", "paid", "cancelled"
     STATES = [(DRAFT, "Draft"), (CONFIRMED, "Confirmed"), (PAID, "Paid"), (CANCELLED, "Cancelled")]
 
+    RECURRING, ADJUSTMENT = "recurring", "adjustment"
     number = models.CharField(max_length=24, unique=True, editable=False)
+    kind = models.CharField(max_length=10, default=RECURRING, choices=[(RECURRING, "Recurring"), (ADJUSTMENT, "Adjustment")])
     subscription = models.ForeignKey("subscriptions.Subscription", on_delete=models.PROTECT, related_name="invoices")
     customer = models.ForeignKey("accounts.Customer", on_delete=models.PROTECT, related_name="invoices")
     state = models.CharField(max_length=10, choices=STATES, default=DRAFT, db_index=True)
@@ -42,7 +44,7 @@ class Invoice(models.Model):
         ordering = ["-id"]
         constraints = [
             # One ordinary invoice per subscription period; an explicit replacement is the only exception.
-            models.UniqueConstraint(fields=["subscription", "period_start"], condition=Q(replaces__isnull=True),
+            models.UniqueConstraint(fields=["subscription", "period_start"], condition=Q(replaces__isnull=True, kind="recurring"),
                                     name="uniq_invoice_per_period"),
         ]
         indexes = [models.Index(fields=["state", "due_date"]), models.Index(fields=["customer", "state"])]
@@ -109,7 +111,7 @@ class DiscountUse(models.Model):
 
 
 class Payment(models.Model):
-    METHODS = [("bank", "Bank transfer"), ("upi", "UPI"), ("card", "Card"), ("cash", "Cash"), ("cheque", "Cheque"), ("other", "Other")]
+    METHODS = [("bank", "Bank transfer"), ("upi", "UPI"), ("card", "Card"), ("cash", "Cash"), ("cheque", "Cheque"), ("online", "Online (test)"), ("other", "Other")]
 
     invoice = models.ForeignKey(Invoice, on_delete=models.PROTECT, related_name="payments")
     method = models.CharField(max_length=10, choices=METHODS, default="bank")

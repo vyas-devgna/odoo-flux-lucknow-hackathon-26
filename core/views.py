@@ -4,12 +4,13 @@ from decimal import Decimal
 from django.contrib import messages
 from django.db.models import Count, F, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from accounts.models import Customer
 from billing.models import Invoice
-from catalog.models import Plan, Product
+from catalog.models import Plan, Product, Tax
 from subscriptions import services
 from subscriptions.models import Subscription
 
@@ -28,19 +29,27 @@ def home(request):
 @internal_required
 def dashboard(request):
     today = timezone.localdate()
-    s = reports.summary()
-    series = reports.month_series()
-    collected_rate = int(s["cash"] / s["invoiced"] * 100) if s["invoiced"] else 0
-    overdue = (Invoice.objects.filter(state=Invoice.CONFIRMED, due_date__lt=today, amount_paid__lt=F("total"))
-               .select_related("subscription").order_by("due_date")[:6])
+    rng = request.GET.get("range", "month")
+    start, end = reports.range_dates(rng, today)
+    s = reports.summary(start, end)
+    rate = min(int(s["cash"] / s["invoiced"] * 100), 100) if s["invoiced"] else 0
+    open_total = s["outstanding"]
+    overdue_pct = min(int(s["overdue"] / open_total * 100), 100) if open_total else 0
+    feed = reports.group_by_day(reports.activity_feed(16))
+    open_invoices = Invoice.objects.filter(state=Invoice.CONFIRMED).order_by("due_date").select_related("subscription")[:60]
     renewals = (Subscription.objects.filter(state=Subscription.ACTIVE, expiry_date__lte=today + timedelta(days=45),
-                                            expiry_date__gte=today).select_related("customer", "plan").order_by("expiry_date")[:6])
+                                            expiry_date__gte=today).select_related("customer", "plan").order_by("expiry_date")[:5])
+    empty = not Subscription.objects.exists()
+    setup = [("Add a tax rule", "catalog:taxes_list", Tax.objects.exists()), ("Create a product", "catalog:products_list", Product.objects.exists()),
+             ("Create a plan", "catalog:plans_list", Plan.objects.exists()), ("Add your first customer", "core:customer_new", Customer.objects.exists()),
+             ("Quote a subscription", "subscriptions:new", Subscription.objects.exists())] if empty else []
     return render(request, "core/dashboard.html", {
-        "s": s, "chart": reports.chart(series), "bars": reports.week_bars(), "rate": min(collected_rate, 100),
-        "overdue": overdue, "renewals": renewals, "today": today,
-        "drafts": Invoice.objects.filter(state=Invoice.DRAFT).count(),
+        "s": s, "rng": rng, "ranges": reports.RANGES, "rate": rate, "overdue_pct": overdue_pct, "arr": s["mrr"] * 12,
+        "feed": feed, "open_invoices": open_invoices, "cal": reports.billing_calendar(today), "renewals": renewals, "today": today,
+        "drafts": Invoice.objects.filter(state=Invoice.DRAFT).count(), "setup": setup, "empty": empty,
         "due_now": Subscription.objects.filter(state="active", next_invoice_date__lte=today).count(),
-        "recent": Invoice.objects.select_related("subscription").order_by("-id")[:6]})
+        "quotes_open": Subscription.objects.filter(state="quotation").count(),
+        "methods": [("bank", "Bank transfer"), ("upi", "UPI"), ("card", "Card"), ("cash", "Cash"), ("cheque", "Cheque")]})
 
 
 @internal_required
@@ -58,7 +67,13 @@ def finance_reports(request):
         qs = qs.filter(state=Invoice.PAID).order_by("-id")
     if plan:
         qs = qs.filter(subscription__plan_id=plan)
+    ag, ag_total = reports.aging()
+    trend = reports.mrr_trend()
+    cur, prev = trend[-1], trend[-2] if len(trend) > 1 else trend[-1]
     return render(request, "core/reports.html", {
+        "aging": ag, "aging_total": ag_total, "trend": trend, "mrr_chart": reports.single_line(trend), "top": reports.top_customers(),
+        "new_subs": sum(t["new"] for t in trend[-3:]), "churned": sum(t["churned"] for t in trend[-3:]), "mrr_delta": cur["mrr"] - prev["mrr"],
+        "net_new": sum(t["new"] - t["churned"] for t in trend[-3:]), "arpa": (s["mrr"] / s["active"]) if s["active"] else 0, "chart": reports.chart(reports.month_series()),
         "s": s, "page": paginate(request, qs), "view": status,
         "views": [("overdue", "Overdue"), ("outstanding", "Outstanding"), ("paid", "Paid")], "plans": Plan.objects.all(), "plan": plan or "",
         "from_": s["start"].isoformat(), "to": s["end"].isoformat(), "today": timezone.localdate()})
@@ -80,14 +95,20 @@ def customer_form(request, pk=None):
     obj = get_object_or_404(Customer, pk=pk) if pk else None
     form = CustomerForm(request.POST or None, instance=obj)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        saved = form.save()
+        audit.log(request.user, "customer.save", saved)
         messages.success(request, "Customer saved.")
+        if request.GET.get("then") == "quote":
+            return redirect(f"{reverse('subscriptions:new')}?customer={saved.pk}")
         return redirect("core:customers")
     ctx = {"form": form, "obj": obj}
     if obj:
         ctx["subs"] = obj.subscriptions.select_related("plan")[:20]
         ctx["invoices"] = obj.invoices.all()[:10]
         ctx["owed"] = obj.invoices.filter(state=Invoice.CONFIRMED).aggregate(t=Sum(reports.BALANCE))["t"] or Decimal(0)
+        ctx["paid"] = obj.invoices.aggregate(t=Sum("amount_paid"))["t"] or Decimal(0)
+        ctx["mrr"] = sum((s.recurring_monthly for s in obj.subscriptions.filter(state="active")), Decimal(0))
+        ctx["timeline"] = audit.timeline(obj)
     return render(request, "core/customer_form.html", ctx)
 
 
@@ -275,3 +296,40 @@ def portal_profile(request):
         messages.success(request, "Billing details updated. They apply to your next invoice.")
         return redirect("core:portal_profile")
     return render(request, "portal/profile.html", {"form": form})
+
+
+@customer_required
+def portal_pay(request, pk):
+    from billing import services as billing
+    inv = get_object_or_404(_my_invoices(request), pk=pk)
+    co = CompanySettings.get()
+    if inv.state != Invoice.CONFIRMED or inv.balance <= 0:
+        messages.info(request, "This invoice has nothing left to pay.")
+        return redirect("core:portal_invoice", pk=pk)
+    if request.method == "POST":
+        try:
+            billing.pay_online(inv, request.user)
+            messages.success(request, f"Payment received for {inv.number}. Thank you!")
+        except billing.BillingError as e:
+            messages.error(request, str(e))
+        return redirect("core:portal_invoice", pk=pk)
+    return render(request, "portal/pay.html", {"inv": inv, "enabled": co.online_payments, "lines": inv.lines.all()})
+
+
+@internal_required
+def customer_statement(request, pk):
+    c = get_object_or_404(Customer, pk=pk)
+    invs = list(c.invoices.exclude(state__in=[Invoice.DRAFT, Invoice.CANCELLED]).order_by("issue_date", "id").prefetch_related("payments"))
+    rows, bal = [], Decimal(0)
+    for i in invs:
+        bal += i.total
+        rows.append({"date": i.issue_date, "ref": i.number, "desc": f"Invoice {i.period_start:%d %b}–{i.period_end:%d %b %Y}", "debit": i.total, "credit": None, "bal": bal})
+        for p in i.payments.all():
+            bal -= p.amount
+            rows.append({"date": p.date, "ref": i.number, "desc": f"{'Refund' if p.amount < 0 else 'Payment'} · {p.get_method_display()}", "debit": -p.amount if p.amount < 0 else None, "credit": p.amount if p.amount > 0 else None, "bal": bal})
+    rows.sort(key=lambda r: r["date"])
+    run = Decimal(0)
+    for r in rows:
+        run += (r["debit"] or 0) - (r["credit"] or 0)
+        r["bal"] = run
+    return render(request, "core/statement.html", {"c": c, "rows": rows, "balance": run, "today": timezone.localdate()})

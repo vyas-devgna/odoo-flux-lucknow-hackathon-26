@@ -62,6 +62,8 @@ class Command(BaseCommand):
         Discount.objects.create(name="Welcome ₹500", kind="fixed", value=500, min_purchase=1000, start_date=today - timedelta(days=200), usage_limit=3)
         Discount.objects.create(name="Spring 20% (ended)", kind="percent", value=20, start_date=today - timedelta(days=300), end_date=today - timedelta(days=120))
         sd = Discount.objects.create(name="Suite loyalty 15%", kind="percent", value=15, start_date=today - timedelta(days=400))
+        sd.scope = "products"
+        sd.save()
         sd.products.set([suite])
 
         rows = [("Maya Rao", "Acme Retail", "maya@acme.test", business, 6, t1, "net30"),
@@ -109,6 +111,8 @@ class Command(BaseCommand):
             if newest and inv.issue_date >= today - timedelta(days=3):
                 continue  # latest invoices stay as drafts for the demo ("review and confirm")
             billing.confirm_invoice(inv)
+            if newest and inv.customer.email in {'neha@bluepeak.test', 'vikram@sethi.test', 'dev@northwind.test'} and inv.issue_date >= today - timedelta(days=40):
+                continue  # recent, still within terms: outstanding but not overdue
             if inv.customer.email in stale and rnd.random() < 0.7 and not newest:
                 continue
             if inv.customer.email in stale and newest:

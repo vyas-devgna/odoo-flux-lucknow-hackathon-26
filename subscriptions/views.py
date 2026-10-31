@@ -7,7 +7,7 @@ from django.views.decorators.http import require_POST
 
 from catalog.models import Plan, Product, ProductVariant
 from core import audit
-from core.crud import paginate
+from core.crud import apply_sort, paginate
 from core.permissions import internal_required
 
 from . import services
@@ -29,14 +29,24 @@ def subscription_list(request):
     if plan:
         qs = qs.filter(plan_id=plan)
     counts = dict(Subscription.objects.values_list("state").annotate(n=Count("id")))
+    if request.GET.get("view") == "board":
+        cols = []
+        for k, label in Subscription.STATES:
+            col = Subscription.objects.filter(state=k).select_related("customer", "plan")
+            if q:
+                col = col.filter(Q(number__icontains=q) | Q(customer__name__icontains=q) | Q(customer__company__icontains=q))
+            cols.append({"key": k, "label": label, "n": counts.get(k, 0), "items": col[:12]})
+        return render(request, "subscriptions/board.html", {"cols": cols, "q": q, "total": sum(counts.values())})
+    qs, sort = apply_sort(request, qs, {"number": "number", "customer": "customer__name", "start": "start_date", "expiry": "expiry_date", "next": "next_invoice_date"}, "-number")
     return render(request, "subscriptions/list.html", {
-        "page": paginate(request, qs), "q": q, "state": state, "plan": plan, "plans": Plan.objects.all(),
+        "sort": sort, "page": paginate(request, qs), "q": q, "state": state, "plan": plan, "plans": Plan.objects.all(),
         "states": Subscription.STATES, "counts": counts, "total": sum(counts.values())})
 
 
 @internal_required
 def subscription_new(request):
-    initial = {"customer": request.GET.get("customer")}
+    from core.models import CompanySettings
+    initial = {"customer": request.GET.get("customer"), "payment_terms": CompanySettings.get().default_payment_terms}
     form = NewSubscriptionForm(request.POST or None, initial=initial)
     if request.method == "POST" and form.is_valid():
         d = form.cleaned_data
@@ -62,7 +72,7 @@ def subscription_detail(request, pk):
         "invoices": sub.invoices.all()[:12], "stages": Subscription.FLOW,
         "addons": sub.plan.products.filter(type=Product.ADDON, active=True),
         "enabled_addons": set(sub.lines.filter(product__type=Product.ADDON).values_list("product_id", flat=True)),
-        "renewals": sub.renewals.all()})
+        "renewals": sub.renewals.all(), "timeline": audit.timeline(sub)})
 
 
 @internal_required
@@ -74,8 +84,14 @@ def subscription_edit(request, pk):
     form = (SubscriptionHeaderForm if sub.is_editable else LiveSubscriptionForm)(request.POST or None, instance=sub)
     fs = LineFormSet(request.POST or None, instance=sub)
     if request.method == "POST" and form.is_valid() and fs.is_valid():
+        before = {l.pk: l.amount for l in sub.lines.all()}
         form.save()
         fs.save()
+        if not sub.is_editable and request.POST.get("prorate"):
+            from billing.services import create_adjustment_invoice
+            adj = create_adjustment_invoice(Subscription.objects.get(pk=sub.pk), before, user=request.user)
+            if adj:
+                messages.success(request, f"Prorated adjustment {adj.number} created as a draft ({adj.total}).")
         audit.log(request.user, "subscription.edit", sub, "lines/terms changed" + ("" if sub.is_editable else "; applies from next invoice"))
         messages.success(request, "Saved." + ("" if sub.is_editable else " Changes apply from the next invoice."))
         return redirect("subscriptions:detail", pk=pk)
@@ -84,6 +100,12 @@ def subscription_edit(request, pk):
                 ProductVariant.objects.all()}
     return render(request, "subscriptions/edit.html", {
         "sub": sub, "form": form, "formset": fs, "prices_json": json.dumps(prices), "variants_json": json.dumps(variants)})
+
+
+@internal_required
+def subscription_print(request, pk):
+    sub = _get(pk)
+    return render(request, "subscriptions/print.html", {"sub": sub, "lines": sub.lines.select_related("product", "variant", "tax")})
 
 
 @internal_required
@@ -103,7 +125,14 @@ def subscription_action(request, pk, action):
         else:
             ACTIONS[action](sub)
             audit.log(request.user, f"subscription.{action}", sub)
-            messages.success(request, f"{sub.number}: {action} done.")
+            if action == "send":
+                try:
+                    services.email_quotation(sub, request)
+                    messages.success(request, f"Quotation {sub.number} emailed to {sub.customer.email}.")
+                except Exception as e:
+                    messages.warning(request, f"Quotation moved to Quotation stage, but the email failed: {e}")
+            else:
+                messages.success(request, f"{sub.number}: {action} done.")
     except (services.TransitionError, KeyError) as e:
         messages.error(request, str(e) if isinstance(e, services.TransitionError) else "Unknown action.")
     return redirect("subscriptions:detail", pk=pk)

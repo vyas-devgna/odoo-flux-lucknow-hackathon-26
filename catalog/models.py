@@ -16,6 +16,7 @@ class Product(models.Model):
     type = models.CharField(max_length=10, choices=TYPES, default=SOFTWARE)
     sales_price = models.DecimalField(**MONEY)
     cost_price = models.DecimalField(**MONEY, default=0)
+    tax = models.ForeignKey("Tax", null=True, blank=True, on_delete=models.SET_NULL, related_name="+", help_text="Tax rule for this product. Blank uses the default tax.")
     notes = models.TextField(blank=True)
     active = models.BooleanField(default=True)
 
@@ -144,6 +145,8 @@ class TemplateLine(models.Model):
 class Discount(models.Model):
     FIXED, PERCENT = "fixed", "percent"
     KINDS = [(FIXED, "Fixed amount"), (PERCENT, "Percentage")]
+    WHOLE, PRODUCTS = "subscription", "products"
+    SCOPES = [(WHOLE, "Whole subscription"), (PRODUCTS, "Selected products only")]
 
     name = models.CharField(max_length=120)
     kind = models.CharField(max_length=8, choices=KINDS, default=PERCENT)
@@ -154,8 +157,8 @@ class Discount(models.Model):
     end_date = models.DateField(null=True, blank=True)
     usage_limit = models.PositiveIntegerField(null=True, blank=True, help_text="Leave blank for unlimited.")
     times_used = models.PositiveIntegerField(default=0, editable=False)
-    products = models.ManyToManyField(Product, blank=True, related_name="discounts",
-                                      help_text="Leave empty to discount the whole subscription.")
+    scope = models.CharField("Applies to", max_length=12, choices=SCOPES, default=WHOLE)
+    products = models.ManyToManyField(Product, blank=True, related_name="discounts")
     active = models.BooleanField(default=True)
 
     class Meta:

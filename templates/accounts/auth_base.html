@@ -2,7 +2,7 @@
 <title>{% block title %}Sign in{% endblock %} · {{ COMPANY }}</title><link rel="stylesheet" href="{% static 'css/app.css' %}">
 <script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'light'</script></head>
 <body><div class="auth">
-<section class="art"><div class="brand" style="padding:0"><span class="logo"></span>{{ COMPANY }}</div>
+<section class="art"><div class="brand"><span class="mark"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="10" fill="#fff"/><circle cx="16" cy="16" r="6.5" fill="none" stroke="#0b0b0d" stroke-width="3.4"/><circle cx="23" cy="9" r="2.6" fill="#ff8a1f"/></svg></span>{{ COMPANY }}</div>
 <div style="position:relative;z-index:1"><h2>Recurring revenue, finally on autopilot.</h2><p>Plans, subscriptions, invoices and payments in one calm place. Renewals never slip. Nothing gets billed twice.</p></div>
 <div class="chipset"><span>Quote → Active</span><span>Auto invoicing</span><span>Customer portal</span><span>Live finance view</span></div><div class="blob"></div></section>
 <section class="panel"><div class="box">{% block body %}{% endblock %}</div></section></div></body></html>

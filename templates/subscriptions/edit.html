@@ -6,6 +6,7 @@
 {% for f in formset %}<tr class="formset-row">{% for h in f.hidden_fields %}{{ h }}{% endfor %}{% for fld in f.visible_fields %}<td>{{ fld }}{{ fld.errors }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
 <div style="padding:14px 22px 20px"><button type="button" class="btn sm" data-add-row="#rows" data-prefix="{{ formset.prefix }}">{% icon 'plus' %}Add line</button></div>
 <template id="empty-row"><tr class="formset-row">{% for h in formset.empty_form.hidden_fields %}{{ h }}{% endfor %}{% for fld in formset.empty_form.visible_fields %}<td>{{ fld }}</td>{% endfor %}</tr></template></div>
+{% if not sub.is_editable %}<div class="card"><div class="field check"><input type="checkbox" name="prorate" id="prorate" checked><label for="prorate">Bill the prorated increase for the rest of this period now</label><span class="help">Creates a draft adjustment invoice for added seats or higher prices. Reductions take effect from the next invoice.</span></div></div>{% endif %}
 <div class="btns"><button class="btn primary">Save</button><a class="btn" href="{% url 'subscriptions:detail' sub.pk %}">Cancel</a></div></form>
 {% endblock %}{% block scripts %}<script>
 const PRICES={{ prices_json|safe }},VARS={{ variants_json|safe }};

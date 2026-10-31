@@ -127,3 +127,13 @@ class StyledFormMixin:
 
 class StyledModelForm(StyledFormMixin, forms.ModelForm):
     pass
+
+
+def apply_sort(request, qs, allowed, default):
+    """?sort=field or ?sort=-field against a whitelist (key -> orm field)."""
+    key = request.GET.get("sort", default)
+    desc = key.startswith("-")
+    field = allowed.get(key.lstrip("-"))
+    if not field:
+        return qs, default
+    return qs.order_by(("-" if desc else "") + field, "-id"), key

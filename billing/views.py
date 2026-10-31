@@ -1,14 +1,15 @@
 import csv
 
 from django.contrib import messages
-from django.db.models import F, Q, Sum
+from django.db.models import Count, F, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core import audit
-from core.crud import paginate
+from core.crud import apply_sort, paginate
+from core import reports
 from core.permissions import internal_required
 
 from . import services
@@ -51,9 +52,13 @@ def invoice_list(request):
         for i in qs.iterator():
             w.writerow([i.number, i.bill_to_name, i.subscription.number, i.issue_date, i.due_date, i.display_state, i.total, i.amount_paid, i.balance])
         return resp
+    qs, sort = apply_sort(request, qs, {"issued": "issue_date", "due": "due_date", "amount": "total"}, "-issued")
     drafts = Invoice.objects.filter(state=Invoice.DRAFT).count()
+    page = paginate(request, qs)
+    groups = reports.group_by_day(list(page.object_list), key="issue_date") if sort.lstrip("-") == "issued" else [{"label": "", "items": list(page.object_list), "total": None}]
+    counts = {k: n for k, n in Invoice.objects.values_list("state").annotate(n=Count("id"))}
     return render(request, "billing/invoice_list.html", {
-        "page": paginate(request, qs), "q": request.GET.get("q", ""), "status": request.GET.get("status", ""),
+        "groups": groups, "sort": sort, "counts": counts, "page": page, "q": request.GET.get("q", ""), "status": request.GET.get("status", ""),
         "filters": STATUS_FILTERS, "drafts": drafts, "today": timezone.localdate(),
         "from_": request.GET.get("from", ""), "to": request.GET.get("to", "")})
 
@@ -83,6 +88,14 @@ def invoice_action(request, pk, action):
             services.send_invoice(inv, request)
             audit.log(request.user, "invoice.send", inv, inv.bill_to_email)
             messages.success(request, f"{inv.number} emailed to {inv.bill_to_email}.")
+        elif action == "refund":
+            form = PaymentForm(request.POST)
+            if form.is_valid():
+                d = form.cleaned_data
+                services.refund_payment(inv, amount=d["amount"], method=d["method"], date=d["date"], note=d["note"], user=request.user)
+                messages.success(request, f"Refund of {d['amount']} recorded.")
+            else:
+                messages.error(request, "; ".join(f"{k}: {' '.join(v)}" for k, v in form.errors.items()))
         elif action == "remind":
             services.send_reminder(inv, request.user)
             messages.success(request, f"Reminder sent to {inv.bill_to_email}.")
@@ -144,8 +157,12 @@ def payment_list(request):
     if g.get("to"):
         qs = qs.filter(date__lte=g["to"])
     total = qs.aggregate(t=Sum("amount"))["t"] or 0
+    page = paginate(request, qs)
+    groups = reports.group_by_day(list(page.object_list), key="date")
+    open_invoices = Invoice.objects.filter(state=Invoice.CONFIRMED).order_by("due_date")[:60]
     return render(request, "billing/payment_list.html", {
-        "page": paginate(request, qs), "methods": Payment.METHODS, "method": g.get("method", ""), "total": total,
+        "page": page, "groups": groups, "open_invoices": open_invoices, "today": timezone.localdate(),
+        "pay_methods": Payment.METHODS, "methods": Payment.METHODS, "method": g.get("method", ""), "total": total,
         "from_": g.get("from", ""), "to": g.get("to", "")})
 
 
@@ -159,3 +176,50 @@ def billing_runs(request):
     from subscriptions.models import Subscription
     due = Subscription.objects.filter(state="active", next_invoice_date__lte=timezone.localdate()).count()
     return render(request, "billing/runs.html", {"runs": BillingRun.objects.all()[:30], "due": due})
+
+
+@internal_required
+@require_POST
+def quick_pay(request):
+    inv = get_object_or_404(Invoice, pk=request.POST.get("invoice") or 0)
+    form = PaymentForm(request.POST)
+    nxt = request.POST.get("next") or "core:dashboard"
+    if form.is_valid():
+        d = form.cleaned_data
+        try:
+            services.record_payment(inv, amount=d["amount"], method=d["method"], date=d["date"], note=d["note"], user=request.user)
+            audit.log(request.user, "payment.record", inv, f"{d['amount']} via {d['method']} (quick)")
+            messages.success(request, f"{d['amount']} recorded on {inv.number}.")
+        except services.BillingError as e:
+            messages.error(request, str(e))
+    else:
+        messages.error(request, "; ".join(f"{k}: {' '.join(v)}" for k, v in form.errors.items()))
+    return redirect(nxt)
+
+
+@internal_required
+@require_POST
+def bulk_selected(request):
+    ids = request.POST.getlist("ids")
+    action = request.POST.get("action")
+    ok = bad = 0
+    for inv in Invoice.objects.filter(pk__in=ids):
+        try:
+            if action == "confirm":
+                services.confirm_invoice(inv)
+            elif action == "send":
+                services.send_invoice(inv, request)
+            elif action == "remind":
+                services.send_reminder(inv, request.user)
+            elif action == "cancel":
+                services.cancel_invoice(inv)
+            else:
+                raise services.BillingError("Unknown action.")
+            audit.log(request.user, f"invoice.{action}", inv, "bulk")
+            ok += 1
+        except Exception:
+            bad += 1
+    messages.success(request, f"{ok} invoice(s) {action}ed.") if ok else None
+    if bad:
+        messages.warning(request, f"{bad} skipped (wrong state or not eligible).")
+    return redirect(request.POST.get("next") or "billing:list")

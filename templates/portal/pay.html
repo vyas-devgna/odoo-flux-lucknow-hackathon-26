@@ -1,0 +1,6 @@
+{% extends 'base.html' %}{% load ui %}{% block heading %}<h1>Pay {{ inv.number }}</h1><p>Due {{ inv.due_date|date:"d M Y" }}</p>{% endblock %}
+{% block content %}<div class="checkout stack"><div class="testmode">Test mode: this simulated checkout records a payment without moving real money. No card details are collected.</div>
+<div class="card"><dl class="kv"><dt>Invoice</dt><dd>{{ inv.number }}</dd><dt>Period</dt><dd>{{ inv.period_start|date:"d M" }} – {{ inv.period_end|date:"d M Y" }}</dd><dt>Total</dt><dd>{{ inv.total|money }}</dd><dt>Already paid</dt><dd>{{ inv.amount_paid|money }}</dd></dl>
+<form method="post" style="margin-top:20px">{% csrf_token %}<button class="btn primary block" {% if not enabled %}disabled{% endif %}>Pay {{ inv.balance|money }}</button></form>
+<p class="small mute" style="margin-bottom:0">{% if not enabled %}Online payment is switched off. Please use the payment instructions on your invoice.{% else %}You'll get the receipt in your invoice history.{% endif %}</p></div>
+<a class="btn" href="{% url 'core:portal_invoice' inv.pk %}">Back to invoice</a></div>{% endblock %}

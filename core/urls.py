@@ -10,6 +10,7 @@ urlpatterns = [
     path("customers/", views.customer_list, name="customers"),
     path("customers/new/", views.customer_form, name="customer_new"),
     path("customers/<int:pk>/", views.customer_form, name="customer_edit"),
+    path("customers/<int:pk>/statement/", views.customer_statement, name="customer_statement"),
     path("settings/", views.company_settings, name="settings"),
     path("audit/", views.audit_log, name="audit"),
     path("search/", views.search, name="search"),
@@ -22,5 +23,6 @@ urlpatterns = [
     path("portal/subscriptions/<int:pk>/<str:action>/", views.portal_action, name="portal_action"),
     path("portal/invoices/", views.portal_invoices, name="portal_invoices"),
     path("portal/invoices/<int:pk>/", views.portal_invoice, name="portal_invoice"),
+    path("portal/invoices/<int:pk>/pay/", views.portal_pay, name="portal_pay"),
     path("portal/invoices/<int:pk>/print/", views.portal_invoice_print, name="portal_invoice_print"),
 ]

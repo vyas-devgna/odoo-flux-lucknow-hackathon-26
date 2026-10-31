@@ -291,3 +291,91 @@ class OperationsTests(TestCase):
         old.refresh_from_db()
         self.assertEqual(old.bill_to_address, "")
         self.assertEqual(Customer.objects.get().address, "Somewhere")
+
+
+class FeatureTests(TestCase):
+    def setUp(self):
+        self.plan, self.cust = make_world()
+        self.today = timezone.localdate()
+        self.admin = User.objects.create_user("ad@x.test", PW, role="admin")
+
+    def test_refund_reopens_invoice_and_cash_total(self):
+        active_sub(self.plan, self.cust, self.today); billing.run_billing(self.today)
+        inv = Invoice.objects.get(); billing.confirm_invoice(inv)
+        billing.record_payment(inv, amount=inv.total, method="bank", date=self.today)
+        inv.refresh_from_db(); self.assertEqual(inv.state, "paid")
+        billing.refund_payment(inv, amount=500, method="bank", date=self.today, note="goodwill")
+        inv.refresh_from_db()
+        self.assertEqual((inv.state, inv.balance), ("confirmed", Decimal("500.00")))
+        with self.assertRaises(billing.BillingError):
+            billing.refund_payment(inv, amount=99999, method="bank", date=self.today)
+        from core import reports
+        self.assertEqual(reports.summary(self.today, self.today)["cash"], inv.total - 500)
+
+    def test_prorated_adjustment_invoice(self):
+        s = active_sub(self.plan, self.cust, self.today - timedelta(days=9))  # period ~ 9 days in
+        s = Subscription.objects.get(pk=s.pk)
+        s.next_invoice_date = add_interval(s.start_date, "monthly", 1); s.periods_billed = 1; s.save()
+        line = s.lines.get(); before = {line.pk: line.amount}
+        line.quantity += 3; line.save()
+        adj = billing.create_adjustment_invoice(s, before, today=self.today)
+        self.assertEqual(adj.kind, "adjustment"); self.assertEqual(adj.state, "draft")
+        total_days = (add_interval(s.start_date, "monthly", 1) - s.start_date).days
+        left = (add_interval(s.start_date, "monthly", 1) - timedelta(days=1) - self.today).days + 1
+        self.assertEqual(adj.subtotal, (Decimal(3000) * left / total_days).quantize(Decimal("0.01")))
+        self.assertIsNone(billing.create_adjustment_invoice(s, {line.pk: line.amount}, today=self.today))  # no increase -> nothing
+        billing.run_billing(self.today)  # adjustment never blocks or duplicates recurring billing
+        self.assertEqual((Invoice.objects.filter(kind="recurring").count(), Invoice.objects.filter(kind="adjustment").count()), (0, 1))
+
+    def test_product_tax_and_discount_scope(self):
+        low = Tax.objects.create(name="Low", rate=5)
+        prod = Product.objects.create(name="Book", type="physical", sales_price=100, tax=low)
+        from catalog.models import QuotationTemplate, TemplateLine
+        tpl = QuotationTemplate.objects.create(name="T", plan=self.plan); TemplateLine.objects.create(template=tpl, product=prod, quantity=1)
+        s = subs.create_subscription(customer=self.cust, plan=self.plan, template=tpl)
+        self.assertEqual(sorted(l.tax_rate for l in s.lines.all()), [Decimal("5.00"), Decimal("18.00")])
+        d = Discount.objects.create(name="OnlyBooks", kind="percent", value=50, scope="products", start_date=self.today)
+        d.products.set([prod])
+        subs.send_quotation(s); subs.confirm(s); subs.activate(s); billing.run_billing(self.today)
+        self.assertEqual(Invoice.objects.get().discount_total, Decimal("50.00"))  # 50% of the book line only
+        d2 = Discount.objects.create(name="EmptyScope", kind="percent", value=90, scope="products", start_date=self.today)
+        self.assertEqual(d2.products.count(), 0)  # a products-scoped rule with no products must not match everything
+
+    def test_portal_online_payment_and_toggle(self):
+        from core.models import CompanySettings
+        u = User.objects.create_user("c@x.test", PW, role="customer"); self.cust.user = u; self.cust.save()
+        active_sub(self.plan, self.cust, self.today); billing.run_billing(self.today)
+        inv = Invoice.objects.get(); billing.confirm_invoice(inv)
+        self.client.force_login(u)
+        self.assertEqual(self.client.get(reverse("core:portal_pay", args=[inv.pk])).status_code, 200)
+        co = CompanySettings.get(); co.online_payments = False; co.save()
+        self.client.post(reverse("core:portal_pay", args=[inv.pk]))
+        inv.refresh_from_db(); self.assertEqual(inv.state, "confirmed")  # disabled -> no payment
+        co.online_payments = True; co.save()
+        self.client.post(reverse("core:portal_pay", args=[inv.pk]))
+        inv.refresh_from_db(); self.assertEqual(inv.state, "paid")
+        # another customer's invoice
+        c2 = Customer.objects.create(name="B", email="b@x.test"); other = active_sub(self.plan, c2, self.today); billing.run_billing(self.today)
+        oi = Invoice.objects.get(subscription=other); billing.confirm_invoice(oi)
+        self.assertEqual(self.client.post(reverse("core:portal_pay", args=[oi.pk])).status_code, 404)
+
+    def test_quote_email_and_bulk_actions(self):
+        s = subs.create_subscription(customer=self.cust, plan=self.plan)
+        self.client.force_login(self.admin)
+        self.client.post(reverse("subscriptions:action", args=[s.pk, "send"]))
+        self.assertEqual(len(mail.outbox), 1); self.assertIn(s.number, mail.outbox[0].subject)
+        active_sub(self.plan, Customer.objects.create(name="Z", email="z@x.test"), self.today - timedelta(days=40)); billing.run_billing(self.today)
+        ids = list(Invoice.objects.values_list("pk", flat=True))
+        self.client.post(reverse("billing:bulk"), {"ids": ids, "action": "confirm"})
+        self.assertFalse(Invoice.objects.filter(state="draft").exists())
+        self.client.post(reverse("billing:bulk"), {"ids": ids, "action": "confirm"})  # already confirmed -> skipped, no crash
+
+    def test_statement_and_new_pages(self):
+        active_sub(self.plan, self.cust, self.today); billing.run_billing(self.today)
+        inv = Invoice.objects.get(); billing.confirm_invoice(inv); billing.record_payment(inv, amount=100, method="upi", date=self.today)
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("core:customer_statement", args=[self.cust.pk]))
+        self.assertContains(r, inv.number)
+        for u in (reverse("subscriptions:list") + "?view=board", reverse("billing:list") + "?sort=due", reverse("subscriptions:list") + "?sort=-customer",
+                  reverse("core:dashboard") + "?range=year", reverse("subscriptions:print", args=[Subscription.objects.first().pk])):
+            self.assertEqual(self.client.get(u).status_code, 200, u)

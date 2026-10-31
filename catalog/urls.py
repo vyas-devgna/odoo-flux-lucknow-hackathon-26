@@ -8,7 +8,7 @@ app_name = "catalog"
 
 products = Resource("catalog", "products", models.Product, forms.ProductForm, "Products",
                     columns=[("Name", "name"), ("Type", "get_type_display"), ("Sales price", "sales_price|money"),
-                             ("Cost", "cost_price|money"), ("Variants", "variants.count"), ("Status", "active|state")],
+                             ("Cost", "cost_price|money"), ("Margin", "margin|money"), ("Variants", "variants.count"), ("Status", "active|state")],
                     search=["name"], inline=forms.VariantFormSet, filters=[("type", "type", models.Product.TYPES)],
                     blurb="What Brightloop sells. Variants add to the base price.")
 plans = Resource("catalog", "plans", models.Plan, forms.PlanForm, "Plans",

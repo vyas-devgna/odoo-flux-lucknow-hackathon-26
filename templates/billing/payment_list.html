@@ -1,7 +1,20 @@
 {% extends 'base.html' %}{% load ui %}{% block heading %}<h1>Payments</h1><p>{{ page.paginator.count }} payments · {{ total|money }} received</p>{% endblock %}
-{% block actions %}<a class="btn" href="{% url 'core:export' 'payments' %}">{% icon 'download' %}CSV</a>{% endblock %}
-{% block content %}<form class="filters" method="get"><select class="input" name="method" onchange="this.form.submit()"><option value="">All methods</option>{% for k, l in methods %}<option value="{{ k }}" {% if k == method %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+{% block actions %}<a class="chip-btn" href="{% url 'core:export' 'payments' %}">{% icon 'download' %}CSV</a>{% endblock %}
+{% block content %}<div class="dash"><div class="stack">
+<form class="filters" method="get" style="margin:0"><select class="input" name="method" onchange="this.form.submit()"><option value="">All methods</option>{% for k, l in methods %}<option value="{{ k }}" {% if k == method %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
 <input class="input" type="date" name="from" value="{{ from_ }}"><input class="input" type="date" name="to" value="{{ to }}"><button class="btn sm">Filter</button></form>
-<div class="card flush"><div class="tw"><table class="stack-table"><thead><tr><th>Date</th><th>Invoice</th><th>Customer</th><th>Method</th><th>Note</th><th>Recorded by</th><th class="right">Amount</th></tr></thead><tbody>
-{% for p in page %}<tr><td data-l="Date">{{ p.date|date:"d M Y" }}</td><td data-l="Invoice"><a class="link" href="{% url 'billing:detail' p.invoice_id %}">{{ p.invoice.number }}</a></td><td data-l="Customer">{{ p.invoice.bill_to_name }}</td><td data-l="Method">{{ p.get_method_display }}</td><td data-l="Note">{{ p.note|default:"—" }}</td><td data-l="By">{{ p.recorded_by|default:"—" }}</td><td data-l="Amount" class="right num">{{ p.amount|money }}</td></tr>
-{% empty %}<tr><td colspan="7"><div class="empty">No payments yet.</div></td></tr>{% endfor %}</tbody></table></div>{% include 'partials/pager.html' %}</div>{% endblock %}
+<div class="card flush hist"><div class="hist-head"><span></span><span>Customer</span><span>Invoice</span><span>Method</span><span class="right">Amount</span><span></span></div>
+{% for g in groups %}<div class="day"><span>{{ g.label }}</span><span>{{ g.items|length }} payment{{ g.items|length|pluralize }} · {{ g.total|money }}</span></div>
+{% for p in g.items %}<div class="row" data-href="{% url 'billing:detail' p.invoice_id %}"><span class="logo-c" style="background:{{ p.invoice.bill_to_name|avatar_color }}">{{ p.invoice.bill_to_name|initials }}</span><div class="who"><b>{{ p.invoice.bill_to_name }}</b><span>{{ p.note|default:"No note" }}</span></div><div class="mid who"><b style="font-weight:500">{{ p.invoice.number }}</b><span>by {{ p.recorded_by|default:"customer/system" }}</span></div><span class="st"><span class="tag">{{ p.get_method_display }}</span></span><span class="amt {% if p.amount < 0 %}out{% else %}in{% endif %}" {% if p.amount < 0 %}style="color:var(--red)"{% endif %}>{% if p.amount > 0 %}+{% endif %}{{ p.amount|money }}</span>{% icon 'right' %}</div>{% endfor %}
+{% empty %}<div class="empty">No payments yet.</div>{% endfor %}{% include 'partials/pager.html' %}</div></div>
+<div class="card"><header><h2>Record a payment</h2></header>
+<form method="post" action="{% url 'billing:quick_pay' %}" class="stack" id="qp">{% csrf_token %}<input type="hidden" name="next" value="billing:payments">
+<div class="field"><label>Open invoice</label><select name="invoice" class="input" id="qp-inv" required>{% for i in open_invoices %}<option value="{{ i.pk }}" data-bal="{{ i.balance }}">{{ i.number }} · {{ i.bill_to_name|truncatechars:22 }}</option>{% empty %}<option value="">No open invoices</option>{% endfor %}</select></div>
+<div class="field"><label>Amount</label><input class="input" name="amount" id="qp-amt" inputmode="decimal" required></div>
+<div class="grid g2"><div class="field"><label>Method</label><select class="input" name="method">{% for k, l in pay_methods %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div><div class="field"><label>Date</label><input class="input" type="date" name="date" value="{{ today|date:'Y-m-d' }}"></div></div>
+<input class="input" name="note" placeholder="Note (optional)"><p class="small mute" style="margin:0" id="qp-hint"></p><button class="btn primary block" {% if not open_invoices %}disabled{% endif %}>Record payment</button></form></div></div>{% endblock %}
+{% block scripts %}<script>
+const sel=document.getElementById('qp-inv'),amt=document.getElementById('qp-amt'),hint=document.getElementById('qp-hint');
+function fill(){const o=sel.selectedOptions[0];if(!o||!o.dataset.bal)return;amt.value=o.dataset.bal;hint.textContent='Outstanding balance: ₹'+Number(o.dataset.bal).toLocaleString('en-IN',{minimumFractionDigits:2})}
+sel.addEventListener('change',fill);fill();
+</script>{% endblock %}

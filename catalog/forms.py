@@ -9,7 +9,7 @@ from .models import Discount, Plan, Product, ProductVariant, QuotationTemplate, 
 class ProductForm(StyledModelForm):
     class Meta:
         model = Product
-        fields = ["name", "type", "sales_price", "cost_price", "notes", "active"]
+        fields = ["name", "type", "sales_price", "cost_price", "tax", "notes", "active"]
         widgets = {"notes": forms.Textarea(attrs={"rows": 3})}
 
 
@@ -49,6 +49,14 @@ TemplateLineFormSet = inlineformset_factory(QuotationTemplate, TemplateLine, for
 class DiscountForm(StyledModelForm):
     class Meta:
         model = Discount
-        fields = ["name", "kind", "value", "min_purchase", "min_quantity", "start_date", "end_date", "usage_limit",
-                  "products", "active"]
-        widgets = {"start_date": forms.DateInput(), "end_date": forms.DateInput()}
+        fields = ["name", "kind", "value", "scope", "products", "min_purchase", "min_quantity", "start_date", "end_date",
+                  "usage_limit", "active"]
+        widgets = {"start_date": forms.DateInput(), "end_date": forms.DateInput(), "scope": forms.RadioSelect()}
+
+    def clean(self):
+        d = super().clean()
+        if d.get("scope") == Discount.PRODUCTS and not d.get("products"):
+            self.add_error("products", "Pick at least one product, or apply to the whole subscription.")
+        if d.get("scope") == Discount.WHOLE:
+            d["products"] = []
+        return d

@@ -1,0 +1,9 @@
+{% load ui %}<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Statement · {{ c }}</title><style>
+body{font:14px/1.5 -apple-system,Inter,Segoe UI,sans-serif;color:#111;max-width:820px;margin:32px auto;padding:0 24px}.h{display:flex;justify-content:space-between;border-bottom:2px solid #111;padding-bottom:18px}.h h1{margin:0;font-size:28px}.b{font-weight:800;letter-spacing:.1em;text-transform:uppercase}.m{color:#666}.r{text-align:right}
+table{width:100%;border-collapse:collapse;margin-top:22px}th{text-align:left;font-size:12px;color:#666;text-transform:uppercase;padding:8px 6px;border-bottom:1px solid #ccc}td{padding:9px 6px;border-bottom:1px solid #eee}.bar{margin-bottom:20px}.bar button{padding:8px 16px;border-radius:99px;border:1px solid #111;background:#111;color:#fff;cursor:pointer}@media print{.bar{display:none}}
+</style></head><body><div class="bar"><button onclick="print()">Print / save as PDF</button></div>
+<div class="h"><div><div class="b">{{ COMPANY }}</div><div class="m">{{ company.address|linebreaksbr }}</div></div><div class="r"><h1>Account statement</h1>{{ today|date:"d M Y" }}</div></div>
+<p><b>{{ c.display_name }}</b><br>{{ c.email }}<br>{{ c.address|linebreaksbr }}</p>
+<table><thead><tr><th>Date</th><th>Reference</th><th>Description</th><th class="r">Charges</th><th class="r">Payments</th><th class="r">Balance</th></tr></thead><tbody>{% for r in rows %}<tr><td>{{ r.date|date:"d M Y" }}</td><td>{{ r.ref }}</td><td>{{ r.desc }}</td><td class="r">{% if r.debit %}{{ r.debit|money }}{% endif %}</td><td class="r">{% if r.credit %}{{ r.credit|money }}{% endif %}</td><td class="r">{{ r.bal|money }}</td></tr>{% empty %}<tr><td colspan="6" class="m">No activity.</td></tr>{% endfor %}</tbody></table>
+<p class="r" style="font-size:18px;margin-top:20px"><b>Balance due: {{ balance|money }}</b></p>
+{% if company.bank_details %}<p class="m">{{ company.bank_details|linebreaksbr }}</p>{% endif %}</body></html>

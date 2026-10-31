@@ -28,7 +28,9 @@ def _best_discount(lines, on):
                    .filter(Q(usage_limit__isnull=True) | Q(times_used__lt=F("usage_limit")))
                    .prefetch_related("products").order_by("id"))
     for rule in today_rules:
-        scope = {p.pk for p in rule.products.all()}
+        scope = {p.pk for p in rule.products.all()} if rule.scope == Discount.PRODUCTS else set()
+        if rule.scope == Discount.PRODUCTS and not scope:
+            continue
         eligible = [l for l in lines if not scope or (l.product_id in scope)]
         base = sum((l.amount for l in eligible), ZERO)
         units = sum(l.quantity for l in eligible)
@@ -104,7 +106,7 @@ def run_billing(as_of=None, trigger="scheduler"):
                     due = sub.next_invoice_date
                     if sub.state != Subscription.ACTIVE or not due or due > as_of or (sub.expiry_date and due > sub.expiry_date):
                         break
-                    exists = Invoice.objects.filter(subscription=sub, period_start=due, replaces__isnull=True).exists()
+                    exists = Invoice.objects.filter(subscription=sub, period_start=due, replaces__isnull=True, kind=Invoice.RECURRING).exists()
                     if exists:
                         run.skipped += 1  # already billed (e.g. an earlier run died after the invoice, before the schedule moved)
                     else:
@@ -261,3 +263,80 @@ def send_due_reminders(as_of=None):
             failed += 1
     audit.log(None, "billing.reminders", detail=f"{sent} overdue reminders, {notices} renewal notices, {failed} failed")
     return sent, notices, failed
+
+
+# ---------- mid-period seat changes ----------
+@transaction.atomic
+def create_adjustment_invoice(sub, before, today=None, user=None):
+    """Draft invoice for the prorated increase of lines changed mid-period.
+
+    `before` maps line pk -> pre-change pre-tax amount (new lines map to 0). Only increases are billed;
+    reductions simply take effect from the next recurring invoice."""
+    from datetime import timedelta
+    today = today or timezone.localdate()
+    if sub.state != Subscription.ACTIVE or sub.periods_billed == 0:
+        return None
+    idx = sub.periods_billed - 1  # the period already billed
+    p_start = add_interval(sub.start_date, sub.plan.interval, idx)
+    p_end = add_interval(sub.start_date, sub.plan.interval, idx + 1) - timedelta(days=1)
+    if not (p_start <= today <= p_end):
+        return None
+    total_days = (p_end - p_start).days + 1
+    left = (p_end - today).days + 1
+    rows, subtotal, tax_total = [], ZERO, ZERO
+    for l in sub.lines.select_related("product", "variant", "tax"):
+        diff = l.amount - before.get(l.pk, ZERO)
+        if diff <= 0:
+            continue
+        amt = q(diff * left / total_days)
+        if amt <= 0:
+            continue
+        tax = q(amt * l.tax_rate / 100)
+        rows.append(dict(description=f"{l.description} · prorated change {today:%d %b}–{p_end:%d %b}", quantity=1, unit_price=amt, discount=ZERO,
+                         tax_name=l.tax.name if l.tax_id else "", tax_rate=l.tax_rate, tax_amount=tax, amount=amt))
+        subtotal += amt
+        tax_total += tax
+    if not rows:
+        return None
+    c = sub.customer
+    inv = Invoice.objects.create(
+        subscription=sub, customer=c, kind=Invoice.ADJUSTMENT, period_start=today, period_end=p_end, issue_date=today,
+        due_date=today + timedelta(days=sub.payment_term_days), bill_to_name=c.display_name, bill_to_email=c.email,
+        bill_to_address=c.address, bill_to_tax_id=c.tax_id, subtotal=subtotal, tax_total=tax_total, total=subtotal + tax_total)
+    InvoiceLine.objects.bulk_create([InvoiceLine(invoice=inv, **r) for r in rows])
+    from core import audit
+    audit.log(user, "invoice.adjustment", inv, f"prorated change on {sub.number}")
+    return inv
+
+
+# ---------- customer checkout (test mode) ----------
+def pay_online(inv, user=None):
+    """Simulated checkout for the portal: pays the full balance. No card data is collected or stored."""
+    from core.models import CompanySettings
+    if not CompanySettings.get().online_payments:
+        raise BillingError("Online payment is not enabled.")
+    pay = record_payment(inv, amount=Invoice.objects.get(pk=inv.pk).balance, method="online", date=timezone.localdate(),
+                         note="Online checkout (test mode)", user=user)
+    from core import audit
+    audit.log(user, "payment.online", inv, f"{pay.amount} (test mode)")
+    return pay
+
+
+@transaction.atomic
+def refund_payment(inv, *, amount, method, date, note="", user=None):
+    """Money returned to the customer. Stored as a negative payment so cash totals stay honest;
+    a refund that leaves a balance reopens a paid invoice."""
+    inv = Invoice.objects.get(pk=inv.pk)
+    amount = q(amount)
+    if inv.state not in (Invoice.CONFIRMED, Invoice.PAID):
+        raise BillingError("Only confirmed or paid invoices can be refunded.")
+    if amount <= 0:
+        raise BillingError("Refund amount must be positive.")
+    if amount > inv.amount_paid:
+        raise BillingError(f"Cannot refund more than was paid ({settings.CURRENCY_SYMBOL}{inv.amount_paid}).")
+    Payment.objects.create(invoice=inv, amount=-amount, method=method, date=date, note=(f"Refund. {note}").strip(), recorded_by=user)
+    inv.amount_paid -= amount
+    inv.state = Invoice.PAID if inv.amount_paid >= inv.total else Invoice.CONFIRMED
+    inv.save(update_fields=["amount_paid", "state"])
+    from core import audit
+    audit.log(user, "payment.refund", inv, f"{amount} via {method}")
