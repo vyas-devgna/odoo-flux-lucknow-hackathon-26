@@ -314,3 +314,7 @@ body.doc-open .docview{transform:none}
 .strip b{display:block;font-size:var(--fs-xl);line-height:var(--lh-xl);font-weight:600;letter-spacing:-.02em}.strip em{display:block;font-style:normal;color:var(--mute);font-size:var(--fs-xs);line-height:var(--lh-xs)}
 .strip .cell.bad b{color:var(--bad)}.strip .cell.ok b{color:var(--ok)}
 @media (max-width:900px){.strip{grid-template-columns:1fr 1fr}.strip .cell:nth-child(3){border-left:0}.strip .cell:nth-child(n+3){border-top:1px solid var(--line)}}
+.hbar>*{min-width:0}.hbar b{white-space:nowrap}
+@media (max-width:900px){.hbar{grid-template-columns:minmax(0,1fr) auto;row-gap:var(--s1)}.hbar .t{grid-column:1/-1;order:3}}
+.filters>*{max-width:100%}.filters .input{min-width:0}
+@media (max-width:900px){.kpi b{font-size:var(--fs-xl);line-height:var(--lh-xl);overflow-wrap:anywhere}.kpi{padding:0 var(--s3)}.kpi:first-child,.kpi:nth-child(3){padding-left:0}}
