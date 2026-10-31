@@ -23,7 +23,7 @@ class Command(BaseCommand):
             raise CommandError("Another billing run is in progress.")
         while True:
             r = run_billing(as_of, trigger="scheduler")
-            self.stdout.write(f"created={r.created} skipped={r.skipped} failed={r.failed} closed={r.closed}")
+            self.stdout.write(f"created={r.created} skipped={r.skipped} failed={r.failed} closed={r.closed} renewed={r.renewed}")
             if r.errors:
                 self.stderr.write(r.errors)
             if not every:

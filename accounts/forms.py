@@ -68,7 +68,7 @@ class StaffForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ["name", "email", "role", "is_active"]
+        fields = ["name", "email", "role", "can_sales", "can_billing", "can_finance", "can_catalog", "is_active"]
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -110,3 +110,16 @@ class CustomerForm(forms.ModelForm):
         super().__init__(*a, **kw)
         for f in self.fields.values():
             f.widget.attrs["class"] = "input"
+
+
+class PaymentMethodForm(forms.ModelForm):
+    class Meta:
+        from .models import PaymentMethod
+        model = PaymentMethod
+        fields = ["kind", "label", "is_default"]
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        for f in self.fields.values():
+            if not isinstance(f.widget, forms.CheckboxInput):
+                f.widget.attrs["class"] = "input"

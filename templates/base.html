@@ -1,56 +1,56 @@
 {% load static ui %}<!doctype html>
 <html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark">
 <title>{% block title %}{{ title|default:"Overview" }}{% endblock %} · {{ COMPANY }}</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230b0b0d'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='white' stroke-width='3.5'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230c0d10'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='white' stroke-width='3.5'/%3E%3C/svg%3E">
+<link rel="preload" href="{% static 'vendor/inter.woff2' %}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="{% static 'css/app.css' %}">
 <script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'light'</script>
-</head><body>
+<script defer src="{% static 'vendor/htmx.min.js' %}"></script><script defer src="{% static 'vendor/alpine.min.js' %}"></script><script defer src="{% static 'vendor/chart.min.js' %}"></script>
+<script defer src="{% static 'js/app.js' %}"></script>
+</head><body hx-boost="true" hx-indicator=".progress-top">
+<div class="progress-top"></div>
 <a href="#main" class="skip">Skip to content</a>
 <div class="wrap">
-{% with n=request.resolver_match.url_name ns=request.resolver_match.namespace %}
 <header class="topbar">
-  <button class="icon-btn burger" onclick="document.body.classList.toggle('open')" aria-label="Menu">{% icon 'menu' %}</button>
-  <a class="brand" href="{% url 'core:home' %}"><span class="mark"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="10" fill="currentColor"/><circle cx="16" cy="16" r="6.5" fill="none" stroke="var(--bg)" stroke-width="3.4"/><circle cx="23" cy="9" r="2.6" fill="#ff8a1f"/></svg></span><span class="t">{{ COMPANY }}</span></a>
+  <button class="icon-btn burger" onclick="document.body.classList.toggle('open')" aria-label="Open menu" aria-controls="tabs">{% icon 'menu' %}</button>
+  <a class="brand" href="{% url 'core:home' %}" aria-label="{{ COMPANY }} home"><span class="mark"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="currentColor"/><circle cx="16" cy="16" r="6.5" fill="none" stroke="var(--bg)" stroke-width="3.4"/><circle cx="23.5" cy="8.5" r="2.5" fill="#ff8a1f"/></svg></span><span class="t">{{ COMPANY }}</span></a>
   <nav class="tabs" id="tabs" aria-label="Main">
   {% if user.is_internal %}
-    <a href="{% url 'core:dashboard' %}" class="{% if n == 'dashboard' %}on{% endif %}">Dashboard</a>
-    <a href="{% url 'subscriptions:list' %}" class="{% if ns == 'subscriptions' %}on{% endif %}">Subscriptions</a>
-    <a href="{% url 'billing:list' %}" class="{% if ns == 'billing' and n != 'payments' and n != 'runs' and n != 'quick_pay' %}on{% endif %}">Invoices</a>
-    <a href="{% url 'billing:payments' %}" class="{% if n == 'payments' %}on{% endif %}">Payments</a>
-    <a href="{% url 'core:customers' %}" class="{% if 'customer' in n %}on{% endif %}">Customers</a>
-    <a href="{% url 'core:reports' %}" class="{% if n == 'reports' %}on{% endif %}">Analytics</a>
-    <details class="{% if ns == 'catalog' %}on{% endif %}"><summary>Catalogue</summary><div class="pop">
-      <a href="{% url 'catalog:products_list' %}">{% icon 'box' %}Products</a><a href="{% url 'catalog:plans_list' %}">{% icon 'layers' %}Plans</a>
-      <a href="{% url 'catalog:templates_list' %}">{% icon 'file' %}Quotation templates</a><a href="{% url 'catalog:discounts_list' %}">{% icon 'percent' %}Discounts</a><a href="{% url 'catalog:taxes_list' %}">{% icon 'tag' %}Taxes</a></div></details>
-    <details class="{% if n == 'runs' or n == 'audit' or n == 'settings' or 'team' in n %}on{% endif %}"><summary>More</summary><div class="pop">
-      <a href="{% url 'billing:runs' %}">{% icon 'clock' %}Billing runs</a>
-      {% if user.is_admin_role %}<a href="{% url 'core:audit' %}">{% icon 'shield' %}Audit log</a><a href="{% url 'accounts:team' %}">{% icon 'users' %}Team</a><a href="{% url 'core:settings' %}">{% icon 'tag' %}Settings</a>{% endif %}
-      <hr><a href="{% url 'core:export' 'subscriptions' %}">{% icon 'download' %}Export subscriptions</a><a href="{% url 'core:export' 'payments' %}">{% icon 'download' %}Export payments</a></div></details>
+    {% for t in NAV_TOP %}<a href="{{ t.url }}" class="{% if t.on %}on{% endif %}" {% if t.on %}aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}
   {% else %}
+    {% with n=request.resolver_match.url_name %}
     <a href="{% url 'core:portal' %}" class="{% if n == 'portal' %}on{% endif %}">Home</a>
-    <a href="{% url 'core:portal_subscriptions' %}" class="{% if n == 'portal_subscriptions' or n == 'portal_subscription' %}on{% endif %}">Subscriptions</a>
+    <a href="{% url 'core:portal_subscriptions' %}" class="{% if n == 'portal_subscriptions' or n == 'portal_subscription' or n == 'portal_change' %}on{% endif %}">Subscriptions</a>
     <a href="{% url 'core:portal_invoices' %}" class="{% if n == 'portal_invoices' or n == 'portal_invoice' or n == 'portal_pay' %}on{% endif %}">Invoices</a>
-    <a href="{% url 'core:portal_profile' %}" class="{% if n == 'portal_profile' %}on{% endif %}">Billing details</a>
+    <a href="{% url 'core:portal_profile' %}" class="{% if n == 'portal_profile' %}on{% endif %}">Account</a>
+    <a href="{% url 'store:home' %}">Browse plans</a>{% endwith %}
   {% endif %}
   </nav>
   <div class="tools">
-    {% if user.is_internal %}<button class="cmd" id="cmdk" type="button">{% icon 'search' %}<span>Search or jump to…</span><kbd>Ctrl K</kbd></button>
-    {% notifications user as nt %}<details><summary class="icon-btn" aria-label="Notifications">{% icon 'bell' %}{% if nt.total %}<i class="dot"></i>{% endif %}</summary><div class="pop">
-      {% for i in nt.items %}<a href="{{ i.url }}"><b>{{ i.n }}</b> {{ i.text }}</a>{% empty %}<a href="#" style="pointer-events:none">You're all caught up.</a>{% endfor %}</div></details>{% endif %}
-    <div class="seg" role="group" aria-label="Theme"><button data-t="light" aria-label="Light">{% icon 'sun' %}</button><button data-t="dark" aria-label="Dark">{% icon 'moon' %}</button></div>
-    <details><summary class="avatar" title="{{ user.name|default:user.email }}">{{ user.name|default:user.email|initials }}</summary><div class="pop">
-      <a href="#" style="pointer-events:none;display:block"><b>{{ user.name|default:user.email }}</b><br><small style="margin:0">{{ user.email }} · {{ user.get_role_display }}</small></a><hr>
+    {% if user.is_internal %}<button class="cmd" id="cmdk" type="button" aria-label="Search and commands">{% icon 'search' %}<span>Search or jump to…</span><kbd>Ctrl K</kbd></button>
+    {% notifications user as nt %}<details><summary class="icon-btn" aria-label="Notifications ({{ nt.total }} need attention)">{% icon 'bell' %}{% if nt.total %}<i class="dot"></i>{% endif %}</summary><div class="pop">
+      <div class="lbl">Needs attention</div>{% for i in nt.items %}<a href="{{ i.url }}"><b class="num">{{ i.n }}</b> {{ i.text }}</a>{% empty %}<a href="#" style="pointer-events:none">You're all caught up.</a>{% endfor %}
+      {% if nt.feed %}<hr><div class="lbl">Recent</div>{% for f in nt.feed %}<a href="{{ f.url|default:'#' }}">{{ f.text|truncatechars:60 }}</a>{% endfor %}{% endif %}</div></details>{% endif %}
+    <div class="seg theme" role="group" aria-label="Theme"><button data-t="light" aria-label="Light theme">{% icon 'sun' %}</button><button data-t="dark" aria-label="Dark theme">{% icon 'moon' %}</button></div>
+    <details><summary class="avatar" aria-label="Account menu">{{ user.name|default:user.email|initials }}</summary><div class="pop">
+      <div class="lbl">{{ user.name|default:user.email }} · {{ user.get_role_display }}</div><div class="lbl" style="padding-top:0">{{ user.email }}</div><hr>
+      {% if user.is_admin_role %}<a href="{% url 'core:settings' %}">{% icon 'tag' %}Settings</a>{% endif %}
       <a href="{% url 'accounts:password_change' %}">{% icon 'shield' %}Change password</a>
-      <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<a href="#" onclick="this.closest('form').submit();return false">{% icon 'out' %}Sign out</a></form></div></details>
+      {% if user.is_internal %}<button type="button" class="item" data-open="help">{% icon 'search' %}Keyboard shortcuts</button>{% endif %}
+      <form method="post" action="{% url 'accounts:logout' %}" hx-boost="false">{% csrf_token %}<button class="item">{% icon 'out' %}Sign out</button></form></div></details>
   </div>
 </header>
-{% endwith %}
-{% if messages %}<div class="msgs">{% for m in messages %}<div class="msg {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}</div>{% endif %}
+<div class="sheet-bg" onclick="document.body.classList.remove('open')"></div>
+{% if user.is_internal and SUBNAV %}<nav class="subnav" aria-label="{{ SECTION|title }}">{% for s in SUBNAV %}<a href="{{ s.url }}" class="{% if s.on %}on{% endif %}" {% if s.on %}aria-current="page"{% endif %}>{{ s.label }}</a>{% endfor %}</nav>{% endif %}
 <main id="main">
 <div class="pagehead"><div>{% block crumbs %}{% endblock %}{% block heading %}<h1>{{ title }}</h1>{% endblock %}</div><div class="acts">{% block actions %}{% endblock %}</div></div>
 {% block content %}{% endblock %}
 </main></div>
-{% if user.is_internal %}<div class="pal-bg" id="pal"><div class="pal"><input id="palq" placeholder="Jump to a page, or search customers, subscriptions, invoices…" autocomplete="off"><ul id="pall"></ul></div></div>{% endif %}
-<script src="{% static 'js/app.js' %}"></script>{% block scripts %}{% endblock %}
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+{% flash_json as flash %}{% if flash %}<script type="application/json" id="flash">{{ flash }}</script>{% endif %}
+<dialog id="confirm"><form method="dialog" class="dlg"><h2 id="confirm-t">Are you sure?</h2><p id="confirm-m"></p><div class="dlg-actions"><button class="btn" value="no">Cancel</button><button class="btn primary" id="confirm-ok" value="yes">Confirm</button></div></form></dialog>
+{% if user.is_internal %}<div class="pal-bg" id="pal" role="dialog" aria-modal="true" aria-label="Command palette"><div class="pal"><input id="palq" placeholder="Search customers, subscriptions, invoices — or jump to a page" autocomplete="off" aria-label="Search"><ul id="pall"></ul><div class="foot"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div></div></div>
+<dialog id="help"><div class="dlg"><h2>Keyboard shortcuts</h2><dl class="kv"><dt><kbd>Ctrl</kbd> <kbd>K</kbd> or <kbd>/</kbd></dt><dd>Search and commands</dd><dt><kbd>G</kbd> then <kbd>D</kbd></dt><dd>Overview</dd><dt><kbd>G</kbd> then <kbd>S</kbd></dt><dd>Subscriptions</dd><dt><kbd>G</kbd> then <kbd>I</kbd></dt><dd>Invoices</dd><dt><kbd>G</kbd> then <kbd>C</kbd></dt><dd>Customers</dd><dt><kbd>N</kbd></dt><dd>New subscription</dd></dl><div class="dlg-actions"><form method="dialog"><button class="btn">Close</button></form></div></div></dialog>{% endif %}
+{% block scripts %}{% endblock %}
 </body></html>

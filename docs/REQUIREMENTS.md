@@ -1,6 +1,6 @@
 # Requirements and acceptance checks
 
-The source of truth is the [Subscription Management System brief](https://hackathon.odoo.com/web/content/215872?download=true). Its four pages describe Brightloop Software and the work that happens during a billing month. The list below translates that brief into checks; it does not claim that any feature is implemented.
+The source of truth is the organiser's Subscription Management System brief. Its four pages describe Brightloop Software and the work that happens during a billing month. The list below translates that brief into checks; it does not claim that any feature is implemented.
 
 ## The people using the system
 
@@ -67,7 +67,7 @@ The source of truth is the [Subscription Management System brief](https://hackat
 
 ## Event requirements
 
-The [event page](https://hackathon.odoo.com/event/odoo-x-flux-lucknow-hackathon-26-36/register) asks for dynamic data, a responsive and consistent interface, input validation, intuitive navigation, and participation in Git by the team. Static JSON is acceptable for initial prototyping only. The organizer's virtual-round email also asks for the latest code on `main`, individual commits and regular pushes, an evaluator collaborator, and an open-access demo video showing the functional flow.
+The event page asks for dynamic data, a responsive and consistent interface, input validation, intuitive navigation, and participation in Git by the team. Static JSON is acceptable for initial prototyping only. The organizer's virtual-round email also asks for the latest code on `main`, individual commits and regular pushes, an evaluator collaborator, and an open-access demo video showing the functional flow.
 
 ## Decisions the brief leaves open
 

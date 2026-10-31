@@ -1,4 +1,6 @@
-{% extends 'base.html' %}{% load ui %}{% block actions %}<a class="btn primary" href="{% url 'accounts:team_new' %}">{% icon 'plus' %}Add team member</a>{% endblock %}
-{% block content %}<div class="card flush tw"><table class="stack-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead><tbody>
-{% for m in members %}<tr><td data-l="Name"><a class="link" href="{% url 'accounts:team_edit' m.pk %}">{{ m.name|default:"—" }}</a></td><td data-l="Email">{{ m.email }}</td><td data-l="Role">{{ m.get_role_display }}</td><td data-l="Status">{% if m.is_active %}{% badge 'active' %}{% else %}{% badge 'closed' 'Disabled' %}{% endif %}</td></tr>{% endfor %}
-</tbody></table></div>{% endblock %}
+{% extends 'base.html' %}{% load ui %}{% block heading %}<h1>Team</h1><p>Admins can do everything. Staff get exactly the capabilities you give them.</p>{% endblock %}
+{% block actions %}<a class="btn primary" href="{% url 'accounts:team_new' %}">{% icon 'plus' %}Add team member</a>{% endblock %}
+{% block content %}<div class="card flush"><div class="tw"><table class="stack-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Can</th><th>Status</th></tr></thead><tbody>
+{% for m in members %}<tr><td data-l="Name"><a class="link" href="{% url 'accounts:team_edit' m.pk %}">{{ m.name|default:"—" }}</a></td><td data-l="Email">{{ m.email }}</td><td data-l="Role">{{ m.get_role_display }}</td>
+<td data-l="Can">{% if m.role == 'admin' %}<span class="tag">Everything</span>{% else %}{% if m.can_sales %}<span class="tag">Sales</span> {% endif %}{% if m.can_billing %}<span class="tag">Billing</span> {% endif %}{% if m.can_finance %}<span class="tag">Finance</span> {% endif %}{% if m.can_catalog %}<span class="tag">Catalogue</span>{% endif %}{% endif %}</td>
+<td data-l="Status">{% if m.is_active %}<span class="pill ok">Active</span>{% else %}<span class="pill mute">Suspended</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></div>{% endblock %}

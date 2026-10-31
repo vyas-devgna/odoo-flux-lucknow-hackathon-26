@@ -31,6 +31,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     role = models.CharField(max_length=10, choices=ROLES, default=CUSTOMER)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)  # Django admin site access only
+    # Staff capability flags (admins implicitly hold all of them)
+    can_sales = models.BooleanField("Sales", default=True, help_text="Customers, quotations and subscription changes.")
+    can_billing = models.BooleanField("Billing", default=True, help_text="Invoices, credit notes and billing runs.")
+    can_finance = models.BooleanField("Finance", default=False, help_text="Record payments and refunds, view financial reports.")
+    can_catalog = models.BooleanField("Catalogue", default=False, help_text="Edit products, plans, templates and taxes.")
     date_joined = models.DateTimeField(auto_now_add=True)
 
     objects = UserManager()
@@ -46,6 +51,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_admin_role(self):
         return self.role == self.ADMIN
+
+    PERMS = ("sales", "billing", "finance", "catalog")
+
+    def has_cap(self, cap):
+        if self.role == self.ADMIN:
+            return True
+        return self.role == self.STAFF and bool(getattr(self, f"can_{cap}", False))
 
     @property
     def is_internal(self):
@@ -65,6 +77,8 @@ class Customer(models.Model):
     company = models.CharField(max_length=160, blank=True)
     address = models.TextField(blank=True)
     tax_id = models.CharField("Tax ID", max_length=40, blank=True)
+    account_manager = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="managed_customers")
+    notes = models.TextField(blank=True)
     user = models.OneToOneField(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="customer")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -96,3 +110,20 @@ class LoginAttempt(models.Model):
         since = timezone.now() - timedelta(minutes=cls.WINDOW_MIN)
         recent = cls.objects.filter(at__gte=since)
         return (recent.filter(email=email).count() >= cls.LIMIT) or (recent.filter(ip=ip).count() >= cls.LIMIT * 4)
+
+
+class PaymentMethod(models.Model):
+    """A customer's preferred way to pay. Descriptive only: no card or bank secrets are ever stored."""
+
+    KINDS = [("upi", "UPI"), ("bank", "Bank transfer"), ("card", "Card (via payment provider)"), ("cheque", "Cheque")]
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="payment_methods")
+    kind = models.CharField(max_length=8, choices=KINDS, default="bank")
+    label = models.CharField(max_length=80, help_text="e.g. UPI ID or bank nickname")
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-is_default", "id"]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} · {self.label}"

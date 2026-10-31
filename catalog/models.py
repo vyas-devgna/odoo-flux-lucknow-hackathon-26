@@ -8,20 +8,76 @@ from django.utils import timezone
 MONEY = dict(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal("0"))])
 
 
+class Category(models.Model):
+    name = models.CharField(max_length=80, unique=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "categories"
+
+    def __str__(self):
+        return self.name
+
+
+class Tax(models.Model):
+    name = models.CharField(max_length=80)
+    rate = models.DecimalField("Rate %", max_digits=5, decimal_places=2, validators=[MinValueValidator(Decimal("0"))])
+    inclusive = models.BooleanField("Price includes this tax", default=False,
+                                    help_text="When on, listed prices already contain the tax; invoices split it out.")
+    valid_from = models.DateField(null=True, blank=True)
+    valid_to = models.DateField(null=True, blank=True)
+    is_default = models.BooleanField(default=False, help_text="Applied to new lines automatically.")
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "taxes"
+
+    def __str__(self):
+        return f"{self.name} ({self.rate.normalize():f}%{', incl.' if self.inclusive else ''})"
+
+    def clean(self):
+        if self.valid_from and self.valid_to and self.valid_to < self.valid_from:
+            raise ValidationError({"valid_to": "Must be on or after the start date."})
+
+    def applies_on(self, day):
+        return self.active and (not self.valid_from or self.valid_from <= day) and (not self.valid_to or day <= self.valid_to)
+
+    def save(self, *a, **kw):
+        super().save(*a, **kw)
+        if self.is_default:
+            Tax.objects.exclude(pk=self.pk).update(is_default=False)
+
+    @classmethod
+    def default(cls, day=None):
+        day = day or timezone.localdate()
+        for t in cls.objects.filter(active=True, is_default=True):
+            if t.applies_on(day):
+                return t
+        return None
+
+
 class Product(models.Model):
-    SOFTWARE, SERVICE, ADDON, PHYSICAL = "software", "service", "addon", "physical"
-    TYPES = [(SOFTWARE, "Software"), (SERVICE, "Service"), (ADDON, "Add-on"), (PHYSICAL, "Physical")]
+    SOFTWARE, SERVICE, ADDON, PHYSICAL, DIGITAL = "software", "service", "addon", "physical", "digital"
+    TYPES = [(SOFTWARE, "Software"), (SERVICE, "Service"), (ADDON, "Add-on"), (DIGITAL, "Digital"), (PHYSICAL, "Physical")]
 
     name = models.CharField(max_length=160)
+    sku = models.CharField("SKU", max_length=40, blank=True)
     type = models.CharField(max_length=10, choices=TYPES, default=SOFTWARE)
+    category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.SET_NULL, related_name="products")
+    description = models.TextField(blank=True)
+    uom = models.CharField("Unit", max_length=20, default="seat", help_text="Unit of measure, e.g. seat, GB, hour.")
     sales_price = models.DecimalField(**MONEY)
     cost_price = models.DecimalField(**MONEY, default=0)
-    tax = models.ForeignKey("Tax", null=True, blank=True, on_delete=models.SET_NULL, related_name="+", help_text="Tax rule for this product. Blank uses the default tax.")
+    tax = models.ForeignKey(Tax, null=True, blank=True, on_delete=models.SET_NULL, related_name="+", help_text="Blank uses the default tax.")
+    recurring = models.BooleanField("Recurring", default=True, help_text="Billed every period. Off for one-time items.")
+    published = models.BooleanField("Show in storefront", default=False)
     notes = models.TextField(blank=True)
     active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["name"]
+        constraints = [models.UniqueConstraint(fields=["sku"], condition=~models.Q(sku=""), name="uniq_product_sku")]
 
     def __str__(self):
         return self.name
@@ -44,7 +100,7 @@ class ProductVariant(models.Model):
     extra_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     class Meta:
-        ordering = ["attribute", "value"]
+        ordering = ["attribute", "extra_price", "value"]
         constraints = [models.UniqueConstraint(fields=["product", "attribute", "value"], name="uniq_variant")]
 
     def __str__(self):
@@ -55,45 +111,35 @@ class ProductVariant(models.Model):
         return self.product.sales_price + self.extra_price
 
 
-class Tax(models.Model):
-    name = models.CharField(max_length=80)
-    rate = models.DecimalField("Rate %", max_digits=5, decimal_places=2, validators=[MinValueValidator(Decimal("0"))])
-    is_default = models.BooleanField(default=False, help_text="Applied to new lines automatically.")
-    active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ["name"]
-        verbose_name_plural = "taxes"
-
-    def __str__(self):
-        return f"{self.name} ({self.rate.normalize():f}%)"
-
-    def save(self, *a, **kw):
-        super().save(*a, **kw)
-        if self.is_default:
-            Tax.objects.exclude(pk=self.pk).update(is_default=False)
-
-    @classmethod
-    def default(cls):
-        return cls.objects.filter(active=True, is_default=True).first()
-
-
 class Plan(models.Model):
     DAILY, WEEKLY, MONTHLY, YEARLY = "daily", "weekly", "monthly", "yearly"
     INTERVALS = [(DAILY, "Daily"), (WEEKLY, "Weekly"), (MONTHLY, "Monthly"), (YEARLY, "Yearly")]
-    # Normalised multiplier to monthly for MRR reporting
-    MONTHLY_FACTOR = {DAILY: Decimal("30"), WEEKLY: Decimal("4.345"), MONTHLY: Decimal("1"), YEARLY: Decimal("0.083333")}
+    # periods per month, for normalising recurring revenue (daily uses a 30.4375-day average month)
+    MONTHLY_FACTOR = {DAILY: Decimal("30.4375"), WEEKLY: Decimal("4.348214"), MONTHLY: Decimal("1"), YEARLY: Decimal("0.083333")}
+    RENEW_AUTO, RENEW_MANUAL = "auto", "manual"
+    CANCEL_ANYTIME, CANCEL_PERIOD_END = "anytime", "period_end"
+    ACT_MANUAL, ACT_ACCEPT, ACT_PAYMENT = "manual", "acceptance", "payment"
 
     name = models.CharField(max_length=120)
-    price = models.DecimalField("Price per seat", **MONEY)
+    description = models.TextField(blank=True)
+    price = models.DecimalField("Base price per unit", **MONEY)
     interval = models.CharField("Billing frequency", max_length=8, choices=INTERVALS, default=MONTHLY)
     min_quantity = models.PositiveIntegerField(default=1)
     available_from = models.DateField(null=True, blank=True)
     available_to = models.DateField(null=True, blank=True)
+    payment_terms = models.CharField(max_length=10, default="net15", choices=[("immediate", "Immediate"), ("net15", "Net 15"), ("net30", "Net 30"), ("net60", "Net 60")])
+    renewal_policy = models.CharField(max_length=6, choices=[(RENEW_AUTO, "Renews automatically"), (RENEW_MANUAL, "Renewal needs approval")], default=RENEW_MANUAL)
+    renewal_notice_days = models.PositiveIntegerField("Renewal notice (days)", default=14)
+    min_duration_periods = models.PositiveIntegerField("Minimum contract (billing periods)", default=0, help_text="0 for none. Early closure is blocked inside this window.")
+    cancel_policy = models.CharField("Cancellation takes effect", max_length=10, choices=[(CANCEL_ANYTIME, "Immediately"), (CANCEL_PERIOD_END, "At the end of the paid period")], default=CANCEL_PERIOD_END)
     auto_close = models.BooleanField("Close automatically at expiry", default=True)
     allow_early_close = models.BooleanField("Allow early closing", default=True)
     allow_pause = models.BooleanField("Allow pausing", default=True)
     allow_renew = models.BooleanField("Allow renewal", default=True)
+    self_serve_changes = models.BooleanField("Customers can change plan and seats", default=True)
+    self_serve_cancel = models.BooleanField("Customers can cancel", default=True)
+    activation = models.CharField("Activate", max_length=10, choices=[(ACT_MANUAL, "Manually by staff"), (ACT_ACCEPT, "When the customer accepts"), (ACT_PAYMENT, "When the first invoice is paid")], default=ACT_MANUAL)
+    published = models.BooleanField("Show in storefront", default=False)
     products = models.ManyToManyField(Product, blank=True, related_name="plans", help_text="Products and add-ons offered on this plan.")
     active = models.BooleanField(default=True)
 
@@ -111,6 +157,23 @@ class Plan(models.Model):
         on = on or timezone.localdate()
         return (self.active and (not self.available_from or self.available_from <= on)
                 and (not self.available_to or on <= self.available_to))
+
+    def unit_price_for(self, quantity):
+        """Base price per unit for a quantity: the highest tier at or below it, else the plan's base price."""
+        tier = self.tiers.filter(min_quantity__lte=quantity).order_by("-min_quantity").first()
+        return tier.unit_price if tier else self.price
+
+
+class PlanTier(models.Model):
+    """Quantity-based pricing: from `min_quantity` units, each unit costs `unit_price`."""
+
+    plan = models.ForeignKey(Plan, on_delete=models.CASCADE, related_name="tiers")
+    min_quantity = models.PositiveIntegerField(validators=[MinValueValidator(2)])
+    unit_price = models.DecimalField(**MONEY)
+
+    class Meta:
+        ordering = ["min_quantity"]
+        constraints = [models.UniqueConstraint(fields=["plan", "min_quantity"], name="uniq_plan_tier")]
 
 
 class QuotationTemplate(models.Model):
@@ -151,14 +214,15 @@ class Discount(models.Model):
     name = models.CharField(max_length=120)
     kind = models.CharField(max_length=8, choices=KINDS, default=PERCENT)
     value = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
+    scope = models.CharField("Applies to", max_length=12, choices=SCOPES, default=WHOLE)
+    products = models.ManyToManyField(Product, blank=True, related_name="discounts")
+    plans = models.ManyToManyField(Plan, blank=True, related_name="discounts", help_text="Limit to these plans. Empty means every plan.")
     min_purchase = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Minimum eligible subtotal per invoice.")
     min_quantity = models.PositiveIntegerField(default=0, help_text="Minimum eligible units per invoice.")
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
     usage_limit = models.PositiveIntegerField(null=True, blank=True, help_text="Leave blank for unlimited.")
     times_used = models.PositiveIntegerField(default=0, editable=False)
-    scope = models.CharField("Applies to", max_length=12, choices=SCOPES, default=WHOLE)
-    products = models.ManyToManyField(Product, blank=True, related_name="discounts")
     active = models.BooleanField(default=True)
 
     class Meta:

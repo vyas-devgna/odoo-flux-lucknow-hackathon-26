@@ -178,3 +178,37 @@ def sorth(context, key, label, right=False):
     params["sort"] = nxt
     params.pop("page", None)
     return format_html('<th class="{}"><a href="?{}">{}{}</a></th>', "right" if right else "", params.urlencode(), label, arrow)
+
+
+@register.simple_tag(takes_context=True)
+def flash_json(context):
+    """Django messages as a JSON array for the toast layer. Escaped so it is safe inside a <script> block."""
+    import json
+    from django.contrib.messages import get_messages
+    from django.utils.safestring import mark_safe
+    msgs = [{"t": m.tags, "m": str(m)} for m in get_messages(context["request"])]
+    return mark_safe(json.dumps(msgs).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")) if msgs else ""
+
+
+@register.filter
+def make_list_words(value):
+    return str(value).split()
+
+
+@register.filter
+def dictget(d, key):
+    return d.get(key) if hasattr(d, "get") else None
+
+
+@register.simple_tag
+def idem_key():
+    import uuid
+    return uuid.uuid4().hex
+
+
+@register.filter
+def pct(value, total):
+    try:
+        return f"{(Decimal(value) / Decimal(total) * 100):.1f}"
+    except Exception:
+        return "0.0"

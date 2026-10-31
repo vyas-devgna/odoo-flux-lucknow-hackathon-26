@@ -1,4 +1,6 @@
-{% extends 'base.html' %}{% block heading %}<h1>{% if member %}Edit{% else %}Add{% endif %} team member</h1>{% endblock %}
-{% block content %}<form method="post" class="card" style="max-width:640px">{% csrf_token %}<div class="form">{{ form.non_field_errors }}
-{% for field in form %}{% include 'accounts/_field.html' %}{% endfor %}</div>
+{% extends 'base.html' %}{% block crumbs %}<div class="crumbs"><a href="{% url 'accounts:team' %}">Team</a><span>{% if member %}{{ member }}{% else %}New{% endif %}</span></div>{% endblock %}
+{% block heading %}<h1>{% if member %}Edit{% else %}Add{% endif %} team member</h1>{% endblock %}
+{% block content %}<form method="post" class="card" style="max-width:680px">{% csrf_token %}<div class="form">{{ form.non_field_errors }}
+{% for field in form %}<div class="{% if field.name in 'password' %}full{% endif %}">{% include 'accounts/_field.html' %}</div>{% endfor %}</div>
+<p class="xs mute" style="margin:12px 0 0">Capabilities apply to staff only. Admins always have all of them. Suspending an account signs the person out immediately.</p>
 <div class="btns" style="margin-top:20px"><button class="btn primary">Save</button><a class="btn" href="{% url 'accounts:team' %}">Cancel</a></div></form>{% endblock %}

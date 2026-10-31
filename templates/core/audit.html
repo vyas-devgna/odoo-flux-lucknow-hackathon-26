@@ -1,6 +1,6 @@
 {% extends 'base.html' %}{% load ui %}{% block heading %}<h1>Audit log</h1><p>Every change, who made it and when. Read-only.</p>{% endblock %}
 {% block content %}<form class="filters" method="get"><div class="search">{% icon 'search' %}<input name="q" value="{{ q }}" placeholder="Search target, person or detail"></div>
-<select class="input" name="action" onchange="this.form.submit()"><option value="">All actions</option>{% for g in groups %}<option value="{{ g }}" {% if g == action %}selected{% endif %}>{{ g|title }}</option>{% endfor %}</select></form>
+<select class="input" name="action" onchange="this.form.requestSubmit()"><option value="">All actions</option>{% for g in groups %}<option value="{{ g }}" {% if g == action %}selected{% endif %}>{{ g|title }}</option>{% endfor %}</select></form>
 <div class="card flush"><div class="tw"><table class="stack-table"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead><tbody>
 {% for e in page %}<tr><td data-l="When" class="num">{{ e.at|date:"d M Y H:i:s" }}</td><td data-l="Who">{{ e.actor_label }}</td><td data-l="Action"><span class="pill info">{{ e.action }}</span></td><td data-l="Target">{{ e.target_label|default:"—" }}</td><td data-l="Detail" class="small">{{ e.detail }}</td></tr>
 {% empty %}<tr><td colspan="5"><div class="empty">No activity yet.</div></td></tr>{% endfor %}</tbody></table></div>{% include 'partials/pager.html' %}</div>{% endblock %}

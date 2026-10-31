@@ -1,0 +1,14 @@
+{% load ui %}<header class="card-head"><h2>Cost preview</h2>{% if pv and pv.changed %}<span class="pill violet">{% if effective == 'next' %}Scheduled{% else %}Immediate{% endif %}</span>{% endif %}</header>
+{% if error %}<div class="callout bad">{{ error }}</div>{% elif pv %}
+<div class="compare"><div class="side"><div class="small mute">Today</div><div class="big num">{{ pv.before_total|money }}</div><div class="xs mute">per {{ sub.plan.interval }} period incl. tax</div></div><span class="arrow">→</span><div class="side new"><div class="small mute">After</div><div class="big num">{{ pv.after_total|money }}</div><div class="xs mute">per period incl. tax</div></div></div>
+{% for n in pv.notes %}<div class="callout warn" style="margin-top:12px">{{ n }}</div>{% endfor %}
+{% if pv.changed %}
+<dl class="kv" style="margin-top:18px"><dt>Monthly recurring</dt><dd class="num">{{ pv.mrr_before|money }} → {{ pv.mrr_after|money }}</dd>
+{% if pv.period %}<dt>Current period</dt><dd>{{ pv.period.1|date:"d M" }} – {{ pv.period.2|date:"d M Y" }} · {{ pv.fraction|floatformat:2 }} remaining</dd>
+{% for d in pv.diffs %}<dt>{{ d.description|truncatechars:42 }}</dt><dd class="num">{% if d.amount > 0 %}+{% endif %}{{ d.amount|money }}</dd>{% endfor %}
+<dt>Prorated tax</dt><dd class="num">{{ pv.adjust_tax|money }}</dd><dt><b>{% if pv.adjust_total < 0 %}Credit to the customer{% else %}Due now{% endif %}</b></dt><dd class="num"><b>{{ pv.adjust_total|money }}</b></dd>
+{% elif effective == 'now' %}<dt>Proration</dt><dd class="mute">Nothing billed for this period yet, so no adjustment.</dd>{% endif %}
+<dt>Next billing amount</dt><dd class="num">{{ pv.next_amount|money }}</dd></dl>
+{% if pv.period and pv.adjust_total > 0 %}<p class="small mute" style="margin-top:12px">A draft adjustment invoice for {{ pv.adjust_total|money }} will be created.</p>{% elif pv.period and pv.adjust_total < 0 %}<p class="small mute" style="margin-top:12px">A credit note for {{ pv.credit|money }} will be issued against this period's invoice.</p>{% endif %}
+<button class="btn primary block" style="margin-top:18px" name="commit" value="1" hx-disable="true">{% if effective == 'next' %}Schedule change{% else %}Confirm change{% endif %}</button>
+{% else %}<p class="mute" style="margin-top:16px">Change the plan, seats or add-ons to see the effect here.</p><button class="btn block" style="margin-top:12px" disabled>Confirm change</button>{% endif %}{% endif %}

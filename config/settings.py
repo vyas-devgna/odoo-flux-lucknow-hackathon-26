@@ -21,11 +21,12 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "core",
+    "core.apps.CoreConfig",
     "accounts",
     "catalog",
     "subscriptions",
     "billing",
+    "store",
 ]
 
 MIDDLEWARE = [
@@ -50,6 +51,7 @@ TEMPLATES = [{
         "django.contrib.auth.context_processors.auth",
         "django.contrib.messages.context_processors.messages",
         "core.context.shell",
+        "core.nav.shell",
     ]},
 }]
 
@@ -64,6 +66,9 @@ DATABASES = {"default": {
 
 AUTH_USER_MODEL = "accounts.User"
 AUTHENTICATION_BACKENDS = ["accounts.backends.EmailBackend"]
+import sys
+if "test" in sys.argv:  # fast hashing for the test suite only
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 AUTH_PASSWORD_VALIDATORS = [{"NAME": "accounts.validators.BrightloopPasswordValidator"}]
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "core:home"
@@ -77,6 +82,9 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT.mkdir(exist_ok=True)
+WHITENOISE_USE_FINDERS = DEBUG
+WHITENOISE_AUTOREFRESH = DEBUG
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Console backend only prints mail; set EMAIL_HOST (+ credentials) in the environment for real SMTP delivery.
@@ -91,7 +99,8 @@ else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Brightloop <billing@brightloop.local>")
 PASSWORD_RESET_TIMEOUT = 3600
-COMPANY_NAME = "Brightloop"
+COMPANY_NAME = "Brightloop Studio"
+SITE_URL = env("SITE_URL", "http://localhost:8765").rstrip("/")
 CURRENCY_SYMBOL = "₹"
 
 SESSION_COOKIE_HTTPONLY = True
@@ -106,6 +115,8 @@ if not DEBUG:
     SECURE_REFERRER_POLICY = "same-origin"
     STORAGES = {"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
                 "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
+
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache", "LOCATION": "brightloop"}}
 
 LOGGING = {
     "version": 1, "disable_existing_loggers": False,

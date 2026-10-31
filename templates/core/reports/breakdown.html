@@ -1,0 +1,7 @@
+{% extends 'base.html' %}{% load ui %}{% block heading %}<h1>Breakdown</h1><p>Net invoiced revenue (after discounts, before tax) · {{ start|date:"d M Y" }} – {{ end|date:"d M Y" }}</p>{% endblock %}
+{% block content %}{% include 'core/reports/_filters.html' %}
+<div class="filters"><div class="chips">{% for k, l in dims %}<a class="chip {% if dim == k %}on{% endif %}" href="?{% qs by=k %}">{{ l }}</a>{% endfor %}</div></div>
+<div class="dash"><div class="card flush"><div class="tw"><table class="stack-table"><thead><tr><th>{{ dim|title }}</th><th class="right">Invoices</th><th class="right">Net revenue</th><th class="right">Share</th></tr></thead><tbody>
+{% for r in rows %}<tr><td data-l="{{ dim|title }}">{{ r.label }}</td><td data-l="Invoices" class="right num">{{ r.invoices }}</td><td data-l="Net revenue" class="right num">{{ r.net|money }}</td><td data-l="Share" class="right num">{% if total %}{{ r.net|pct:total }}%{% endif %}</td></tr>{% empty %}<tr><td colspan="4"><div class="empty">No revenue in this range.</div></td></tr>{% endfor %}</tbody>
+{% if rows %}<tfoot><tr><td><b>Total</b></td><td></td><td class="right num"><b>{{ total|money }}</b></td><td></td></tr></tfoot>{% endif %}</table></div></div>
+<div class="card"><header><h2>Top {{ dim }}s</h2></header><div class="chart-box"><canvas data-chart="ch-bd" role="img" aria-label="Revenue by {{ dim }}"></canvas></div>{{ chart_cfg|json_script:"ch-bd" }}</div></div>{% endblock %}

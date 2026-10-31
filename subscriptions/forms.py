@@ -9,24 +9,31 @@ from .models import Subscription, SubscriptionLine
 
 
 class NewSubscriptionForm(StyledModelForm):
+    quantity = forms.IntegerField(min_value=1, required=False, help_text="Seats or units. Defaults to the plan minimum.")
     template = forms.ModelChoiceField(QuotationTemplate.objects.filter(active=True), required=False,
                                       help_text="Optional: copies the template's product lines and validity.")
 
     class Meta:
         model = Subscription
-        fields = ["customer", "plan", "template", "start_date", "expiry_date", "payment_terms", "notes"]
+        fields = ["customer", "plan", "template", "quantity", "start_date", "expiry_date", "payment_terms", "salesperson", "notes"]
         widgets = {"start_date": forms.DateInput(), "expiry_date": forms.DateInput(), "notes": forms.Textarea(attrs={"rows": 2})}
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.fields["plan"].queryset = Plan.objects.filter(active=True)
         self.fields["customer"].queryset = Customer.objects.all()
+        from accounts.models import User
+        self.fields["salesperson"].queryset = User.objects.filter(role__in=["admin", "staff"], is_active=True)
+        self.fields["salesperson"].required = False
+        self.fields["payment_terms"].required = False
 
     def clean(self):
         d = super().clean()
         plan, tpl = d.get("plan"), d.get("template")
         if plan and not plan.is_available(d.get("start_date")):
             self.add_error("plan", "This plan isn't available on that start date.")
+        if plan and d.get("quantity") and d["quantity"] < plan.min_quantity:
+            self.add_error("quantity", f"This plan has a minimum of {plan.min_quantity}.")
         if plan and tpl and tpl.plan_id != plan.pk:
             self.add_error("template", f"That template belongs to “{tpl.plan.name}”.")
         if d.get("start_date") and d.get("expiry_date") and d["expiry_date"] <= d["start_date"]:
@@ -37,7 +44,7 @@ class NewSubscriptionForm(StyledModelForm):
 class SubscriptionHeaderForm(StyledModelForm):
     class Meta:
         model = Subscription
-        fields = ["customer", "start_date", "expiry_date", "payment_terms", "quote_valid_until", "notes"]
+        fields = ["customer", "start_date", "expiry_date", "payment_terms", "renewal_policy", "salesperson", "quote_valid_until", "notes"]
         widgets = {"start_date": forms.DateInput(), "expiry_date": forms.DateInput(),
                    "quote_valid_until": forms.DateInput(), "notes": forms.Textarea(attrs={"rows": 2})}
 
@@ -47,7 +54,7 @@ class LiveSubscriptionForm(StyledModelForm):
 
     class Meta:
         model = Subscription
-        fields = ["expiry_date", "payment_terms", "notes"]
+        fields = ["expiry_date", "payment_terms", "renewal_policy", "salesperson", "notes"]
         widgets = {"expiry_date": forms.DateInput(), "notes": forms.Textarea(attrs={"rows": 2})}
 
     def clean_expiry_date(self):
@@ -60,7 +67,7 @@ class LiveSubscriptionForm(StyledModelForm):
 class LineForm(StyledModelForm):
     class Meta:
         model = SubscriptionLine
-        fields = ["product", "variant", "label", "quantity", "unit_price", "tax"]
+        fields = ["product", "variant", "label", "quantity", "unit_price", "tax", "recurring"]
 
     def clean(self):
         d = super().clean()
@@ -69,6 +76,18 @@ class LineForm(StyledModelForm):
         if not d.get("product") and not d.get("label") and not self.errors:
             self.add_error("label", "Pick a product or describe the line.")
         return d
+
+
+class CloseForm(forms.Form):
+    reason = forms.ChoiceField(choices=Subscription.CLOSE_REASONS[:-1] + [Subscription.CLOSE_REASONS[-1]], initial="customer_request")
+    note = forms.CharField(required=False, max_length=300, widget=forms.TextInput(attrs={"placeholder": "Optional note"}))
+    immediate = forms.BooleanField(required=False, label="End immediately instead of at the end of the paid period")
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        for f in self.fields.values():
+            if not isinstance(f.widget, forms.CheckboxInput):
+                f.widget.attrs["class"] = "input"
 
 
 class BaseLineFormSet(forms.BaseInlineFormSet):

@@ -1,6 +1,6 @@
 # Subscription Management System
 
-Odoo × FLUX Lucknow Hackathon ’26 · Virtual round
+Lucknow Hackathon ’26 · Virtual round
 
 Team leader: **Vyas Devgna** · [@vyas-devgna](https://github.com/vyas-devgna)
 
@@ -22,7 +22,7 @@ flowchart LR
 
 ## Start here
 
-- [Official problem statement](https://hackathon.odoo.com/web/content/215872?download=true)
+- Problem statement: the organiser's Subscription Management System brief (4 pages).
 - [Requirements and acceptance checks](docs/REQUIREMENTS.md) — what the brief asks for and what remains a team decision.
 - [Architecture](docs/ARCHITECTURE.md) — proposed stack, data, permissions, billing, and integration boundaries.
 - [Round plan and contribution workflow](docs/ROUND_PLAN.md) — implementation order, team slices, checks, and submission.

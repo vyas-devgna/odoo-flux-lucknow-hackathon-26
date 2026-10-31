@@ -1,5 +1,5 @@
 {% extends 'accounts/auth_base.html' %}{% block title %}Create account{% endblock %}{% block body %}
 <div><h1>Create your account</h1><p class="mute" style="margin:6px 0 0">Manage subscriptions and invoices, no emails needed.</p></div>
-<form method="post" class="form" novalidate>{% csrf_token %}{{ form.non_field_errors }}
+<form method="post" class="form" novalidate>{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">{{ form.non_field_errors }}
 {% for field in form %}{% include 'accounts/_field.html' %}{% endfor %}<button class="btn primary">Create account</button></form>
 <p class="fine">Already registered? <a href="{% url 'accounts:login' %}">Sign in</a></p>{% endblock %}

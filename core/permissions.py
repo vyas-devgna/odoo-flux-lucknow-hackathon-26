@@ -20,3 +20,8 @@ def _guard(test):
 internal_required = _guard(lambda u: u.is_internal)
 admin_required = _guard(lambda u: u.is_admin_role)
 customer_required = _guard(lambda u: u.role == "customer" and hasattr(u, "customer"))
+
+
+def cap_required(*caps):
+    """Staff need at least one of the capability flags; admins always pass. Enforced server-side on every request."""
+    return _guard(lambda u: u.is_internal and any(u.has_cap(c) for c in caps))

@@ -1,0 +1,3 @@
+{% extends 'base.html' %}{% block crumbs %}<div class="crumbs"><a href="{% url 'core:automation' %}">Automation</a><span>{{ obj.name }}</span></div>{% endblock %}
+{% block heading %}<h1>{{ obj.name }}</h1><p>Variables: {customer} {number} {amount} {due_date} {plan} {company} {link}</p>{% endblock %}
+{% block content %}<form method="post" class="card" style="max-width:720px">{% csrf_token %}<div class="form" style="grid-template-columns:1fr">{% for field in form %}{% include 'accounts/_field.html' %}{% endfor %}</div><div class="btns" style="margin-top:20px"><button class="btn primary">Save template</button><a class="btn" href="{% url 'core:automation' %}">Cancel</a></div></form>{% endblock %}

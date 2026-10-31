@@ -1,6 +1,6 @@
 # Proposed architecture
 
-This design is a starting contract for the team, not a description of an existing application. The [official brief](https://hackathon.odoo.com/web/content/215872?download=true) takes precedence when it conflicts with a proposal here. Record any changed decisions in this document before teammates build against different assumptions.
+This design is a starting contract for the team, not a description of an existing application. The official brief takes precedence when it conflicts with a proposal here. Record any changed decisions in this document before teammates build against different assumptions.
 
 ## Stack
 
@@ -167,7 +167,7 @@ sequenceDiagram
 - Process overdue periods after downtime, without billing paused or closed subscriptions contrary to the chosen policy. Log failures so they can be retried and investigated.
 - Use one scheduler for SQLite, prevent overlapping command runs, keep transactions short, and use bounded retries for lock errors. Database uniqueness and transactional checks remain necessary even with a single scheduler. SQLite does not implement `select_for_update()`; do not rely on it for locking. If concurrent writes become a problem, move the same Django models to PostgreSQL and revisit locking. [Django SQLite locking guidance](https://docs.djangoproject.com/en/5.2/ref/databases/#database-is-locked-errors).
 
-Proposed calendar policy: use `Asia/Kolkata` for the round, treat dates consistently, and preserve the original day-of-month anchor. If a month has no matching day, use its last day and return to the original anchor when possible: for example, 31 January 2027 → 28 February → 31 March. Make expiry, renewal, pause, and resume behavior explicit before implementation. This is a team policy, not a rule given by the brief. [Stripe's billing-cycle examples](https://docs.stripe.com/billing/subscriptions/billing-cycle) illustrate the short-month case.
+Proposed calendar policy: use `Asia/Kolkata` for the round, treat dates consistently, and preserve the original day-of-month anchor. If a month has no matching day, use its last day and return to the original anchor when possible: for example, 31 January 2027 → 28 February → 31 March. Make expiry, renewal, pause, and resume behavior explicit before implementation. This is a team policy, not a rule given by the brief.
 
 ## Interfaces between slices
 
@@ -193,7 +193,6 @@ Keep cash received, amounts invoiced, outstanding balances, and recurring amount
 
 ## External references
 
-- [Official problem statement](https://hackathon.odoo.com/web/content/215872?download=true)
 - [Django database transactions](https://docs.djangoproject.com/en/5.2/topics/db/transactions/)
 - [Django email backends](https://docs.djangoproject.com/en/5.2/topics/email/)
 - [OWASP authorization guidance](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html) and [password reset guidance](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)

@@ -1,0 +1,7 @@
+{% extends 'store/base_store.html' %}{% load ui %}{% block content %}
+<section class="store-hero"><h1>Pick the plan that fits how you work.</h1><p class="mute" style="margin-top:16px;font-size:18px;max-width:560px">Transparent pricing, change seats any time, cancel when you need to. Taxes are shown before you commit.</p></section>
+<div class="plans">{% for p in plans %}<article class="card plan"><div><h2 style="font-size:20px">{{ p.name }}</h2><p class="mute small" style="margin-top:4px">{{ p.description|default:"Billed "|add:p.get_interval_display|lower }}</p></div>
+<div><div class="price num">{{ p.price|money }}</div><span class="mute small">per unit · {{ p.get_interval_display|lower }}</span></div>
+<ul>{% if p.min_quantity > 1 %}<li>Minimum {{ p.min_quantity }} units</li>{% endif %}{% for t in p.tiers.all %}<li>{{ t.unit_price|money }} each from {{ t.min_quantity }} units</li>{% endfor %}<li>{% if p.cancel_policy == 'anytime' %}Cancel any time{% else %}Cancel at the end of the paid period{% endif %}</li>{% if p.allow_pause %}<li>Pause when you need to</li>{% endif %}{% if p.renewal_policy == 'auto' %}<li>Renews automatically</li>{% endif %}</ul>
+<a class="btn primary block" style="margin-top:auto" href="{% url 'store:plan' p.pk %}">Choose {{ p.name }}</a></article>
+{% empty %}<div class="card" style="grid-column:1/-1"><div class="empty"><span class="art">{% icon 'layers' %}</span><b>No plans are published yet</b><span>Check back soon.</span></div></div>{% endfor %}</div>{% endblock %}

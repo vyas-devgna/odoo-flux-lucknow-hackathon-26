@@ -1,6 +1,6 @@
-{% extends 'base.html' %}{% load ui %}{% block crumbs %}<div class="crumbs"><a href="{% url 'core:customers' %}">Customers</a> / Import</div>{% endblock %}
+{% extends 'base.html' %}{% load ui %}{% block crumbs %}<div class="crumbs"><a href="{% url 'core:customers' %}">Customers</a><span>Import</span></div>{% endblock %}
 {% block heading %}<h1>Import customers</h1><p>Move over your spreadsheet. Rows are matched by email: new customers are created, existing ones are updated.</p>{% endblock %}
-{% block content %}<div class="dash"><form method="post" enctype="multipart/form-data" class="card">{% csrf_token %}<header><h2>Upload a CSV</h2></header>
+{% block content %}<div class="dash"><form method="post" enctype="multipart/form-data" class="card" hx-boost="false">{% csrf_token %}<header><h2>Upload a CSV</h2></header>
 <div class="field"><label for="file">CSV file</label><input type="file" id="file" name="file" accept=".csv,text/csv" required></div>
 <p class="small mute">Headers: <code>name</code>, <code>email</code> (required), then optional <code>company</code>, <code>phone</code>, <code>address</code>, <code>tax_id</code>. Invalid rows are skipped and listed; the rest are imported together.</p>
 <div class="btns"><button class="btn primary">Import</button><a class="btn" href="{% url 'core:customers' %}">Cancel</a></div></form>

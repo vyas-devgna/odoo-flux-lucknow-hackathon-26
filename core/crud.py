@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path, reverse
 
 from . import audit
-from .permissions import admin_required, internal_required
+from .permissions import admin_required, cap_required, internal_required
 
 PAGE_SIZE = 25
 
@@ -18,10 +18,11 @@ def paginate(request, qs, size=PAGE_SIZE):
 
 class Resource:
     def __init__(self, ns, slug, model, form, title, columns, search=(), write="admin", inline=None, queryset=None,
-                 empty="Nothing here yet.", filters=(), blurb=""):
+                 empty="Nothing here yet.", filters=(), blurb="", sections=None):
         self.ns, self.slug, self.model, self.form, self.title = ns, slug, model, form, title
         self.columns, self.search, self.inline, self.empty, self.filters, self.blurb = columns, search, inline, empty, filters, blurb
-        self.write_guard = admin_required if write == "admin" else internal_required
+        self.sections = sections
+        self.write_guard = admin_required if write == "admin" else cap_required(write)
         self.write = write
         self.queryset = queryset or (lambda: model.objects.all())
 
@@ -37,7 +38,7 @@ class Resource:
         return self.url("new")
 
     def can_write(self, user):
-        return user.is_admin_role if self.write == "admin" else user.is_internal
+        return user.is_admin_role if self.write == "admin" else user.has_cap(self.write)
 
     # --- views ---
     def list_view(self):
@@ -74,7 +75,17 @@ class Resource:
                     fs.save()
                 messages.success(request, f"{self.model._meta.verbose_name.title()} saved.")
                 return redirect(self.url("list"))
-            return render(request, "crud/form.html", {"res": self, "form": form, "formset": fs, "obj": obj,
+            sections = None
+            if self.sections:
+                used = set()
+                sections = []
+                for title, names in self.sections:
+                    sections.append((title, [form[n] for n in names if n in form.fields]))
+                    used.update(names)
+                rest = [f for f in form if f.name not in used]
+                if rest:
+                    sections.append(("Other", rest))
+            return render(request, "crud/form.html", {"res": self, "form": form, "formset": fs, "obj": obj, "sections": sections,
                                                       "title": ("New " if creating else "Edit ") + self.model._meta.verbose_name})
         return self.write_guard(view)
 

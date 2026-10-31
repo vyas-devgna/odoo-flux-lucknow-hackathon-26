@@ -10,8 +10,11 @@ urlpatterns = [
     path("invoices/confirm-drafts/", views.bulk_confirm, name="bulk_confirm"),
     path("invoices/<int:pk>/", views.invoice_detail, name="detail"),
     path("invoices/<int:pk>/print/", views.invoice_print, name="print"),
+    path("invoices/<int:pk>/pdf/", views.invoice_pdf, name="pdf"),
     path("invoices/<int:pk>/<str:action>/", views.invoice_action, name="action"),
+    path("credit-notes/", views.credit_notes, name="credit_notes"),
     path("payments/", views.payment_list, name="payments"),
     path("payments/quick/", views.quick_pay, name="quick_pay"),
     path("runs/", views.billing_runs, name="runs"),
+    path("webhooks/razorpay/", views.razorpay_webhook, name="razorpay_webhook"),
 ]
