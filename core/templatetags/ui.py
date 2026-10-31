@@ -187,7 +187,8 @@ def flash_json(context):
     from django.contrib.messages import get_messages
     from django.utils.safestring import mark_safe
     msgs = [{"t": m.tags, "m": str(m)} for m in get_messages(context["request"])]
-    return mark_safe(json.dumps(msgs).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")) if msgs else ""
+    return mark_safe(json.dumps(msgs)  # nosec B308 B703: JSON with <, > and & escaped, only used inside a script block
+                     .replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")) if msgs else ""
 
 
 @register.filter

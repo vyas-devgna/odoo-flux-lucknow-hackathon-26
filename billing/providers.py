@@ -43,7 +43,7 @@ def _call(method, path, payload=None):
     req = urllib.request.Request(API + path, method=method, data=json.dumps(payload).encode() if payload is not None else None,
                                  headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=10) as r:
+        with urllib.request.urlopen(req, timeout=10) as r:  # nosec B310: fixed https API base, never user-supplied
             return json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         raise BillingError(f"Payment provider rejected the request ({e.code}).")
