@@ -1,6 +1,31 @@
-# Proposed architecture
+# Architecture and policies
 
-This design is a starting contract for the team, not a description of an existing application. The official brief takes precedence when it conflicts with a proposal here. Record any changed decisions in this document before teammates build against different assumptions.
+**Status:** implemented. The first part of this document records the policies the code enforces (and the tests that prove them). The later sections are the original design notes, kept where they still apply.
+
+## Implemented policies
+
+| Topic | Rule | Where / proof |
+|---|---|---|
+| Money | `Decimal`, rounded half-up to 0.01 once per stored amount (`core.money.q`). Never floats. | `core/money.py`, `test_billing`, `test_payments` |
+| Calendar | Periods are computed from the **start-date anchor**, never from the previous period: 31 Jan → 28 Feb → 31 Mar; 29 Feb + 1 year → 28 Feb; daily/weekly add exact days. Timezone `Asia/Kolkata`; dates only. | `subscriptions.models.add_interval`, `Calendar` tests |
+| Billing identity | A `BillingPeriod` row is unique per (subscription, index); an ordinary invoice is unique per (subscription, period start). A crash between invoice and schedule update is repaired by the next run (`skipped`). | `billing/engine.py`, `Idempotency` tests |
+| Concurrency | Per-subscription transaction; PostgreSQL uses `SELECT … FOR UPDATE SKIP LOCKED`; SQLite serialises writers (`BEGIN IMMEDIATE`, WAL). A runner that loses a lock skips and the next run completes it. | `Concurrency` test (threads) on SQLite and PostgreSQL |
+| Pricing | The plan price pre-fills **one** base line (tiered by quantity); products are priced from the catalogue. The plan is never charged twice. One-time lines bill on the first period only and are excluded from MRR. | `subscriptions/services.create_subscription`, `billing/pricing.py` |
+| Discounts | One best eligible rule per invoice (no stacking). Applied **before** tax. Fixed amounts are allocated proportionally across eligible lines, remainder on the last. A use is claimed atomically and tied to the invoice; cancelling an unpaid invoice gives the use back and a replacement claims it again. | `billing/pricing.py`, `Discounts` tests |
+| Tax | Per-line rule: product tax, else default tax valid on the quote date. Exclusive: tax = net × rate. Inclusive: the listed price contains the tax and is carved out. Not a statutory-compliance engine. | `Taxes` tests |
+| Invoice lifecycle | Draft → Confirmed (locks the amounts) → Paid; Cancelled is terminal. A locked invoice rejects edits to amounts, period or parties at the model level. Corrections are **credit notes** (negative documents linked to the original) or an explicit **replacement**. | `Invoice.save`, `Snapshots` test |
+| Contract lifecycle | Draft → Quotation → Confirmed → Active → Closed, plus Paused and Cancelled (rejected/expired quotation). Transitions are guarded in `subscriptions/services.py` for staff and portal alike; plan flags (pause, early close, renew, self-service, minimum term, cancellation timing) are enforced there. | `Lifecycle` tests, `PortalIsolation` |
+| Amendments | Previewed before commit: today vs after, MRR before/after, proration of the **remaining days of the paid period** (`days_left / days_in_period`, each line rounded), amount due now or credit, next billing amount. Immediate changes bill an adjustment invoice (increase) or issue a credit note (decrease); if the period's invoice is still a draft it is regenerated instead. "Next period" changes are stored and applied by the billing run. Plan changes must keep the billing frequency. | `Changes` tests |
+| Renewal | New linked term, never a reopened record. Renewal quotation (customer decides) or confirmed renewal; plans can auto-renew at expiry; closing a renewed term nets to zero in MRR. | `Lifecycle`, `Movements` tests |
+| Payments | Payments apply only to confirmed invoices, never exceed the balance, are idempotent (`idempotency_key`, `(provider, provider_ref)`), and have statuses. Customer-reported payments stay **pending** until staff match them to a statement. Failed payments never touch balances. Refunds are negative payments and cannot exceed what was paid. | `test_payments` |
+| Provider | Hosted checkout only. Money is recorded from signature-verified webhooks or an explicit reconcile call, never from a browser redirect. Events are deduplicated by id; a provider outage records nothing. No automatic retries exist, so an ambiguous outcome can never double-charge; links are refused while a payment is awaiting confirmation. Sandbox keys mark payments `is_test`, excluded from revenue. | `Provider` tests |
+| Permissions | Roles (admin / staff / customer) + staff capabilities (sales, billing, finance, catalogue). Every view/action checks server-side; portal querysets are filtered by owner so other customers' ids return 404. | `Authorisation`, `PortalIsolation` |
+| Reporting | Recurring revenue comes from effective-dated `SubscriptionChange` rows, so history is never recomputed from today's state. Definitions in [METRICS.md](METRICS.md). | `test_reports` |
+| Email | Outbox first, delivery after commit, exponential backoff, dedupe keys. Mail failure never blocks billing. | `OutboxTests` |
+
+## Original design notes
+
+The official brief takes precedence when it conflicts with a proposal here. Record any changed decisions in this document before teammates build against different assumptions.
 
 ## Stack
 

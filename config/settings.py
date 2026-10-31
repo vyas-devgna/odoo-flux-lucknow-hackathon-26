@@ -57,12 +57,20 @@ TEMPLATES = [{
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-DATABASES = {"default": {
-    "ENGINE": "django.db.backends.sqlite3",
-    "NAME": env("DJANGO_DB", str(BASE_DIR / "db.sqlite3")),
-    "OPTIONS": {"timeout": 20, "transaction_mode": "IMMEDIATE",
-                "init_command": "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;"},
-}}
+def _database():
+    """SQLite for local work; set DATABASE_URL=postgres://user:pass@host:5432/name for production (needs: pip install "psycopg[binary]")."""
+    url = env("DATABASE_URL")
+    if url.startswith(("postgres://", "postgresql://")):
+        from urllib.parse import unquote, urlparse
+        u = urlparse(url)
+        return {"ENGINE": "django.db.backends.postgresql", "NAME": u.path.lstrip("/"), "USER": unquote(u.username or ""), "PASSWORD": unquote(u.password or ""),
+                "HOST": u.hostname or "", "PORT": u.port or "", "CONN_MAX_AGE": int(env("DB_CONN_MAX_AGE", "60")), "CONN_HEALTH_CHECKS": True,
+                "OPTIONS": {"connect_timeout": 10}, "TEST": {"NAME": env("DB_TEST_NAME", "test_" + u.path.lstrip("/"))}}
+    return {"ENGINE": "django.db.backends.sqlite3", "NAME": env("DJANGO_DB", str(BASE_DIR / "db.sqlite3")),
+            "OPTIONS": {"timeout": 20, "transaction_mode": "IMMEDIATE", "init_command": "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;"}}
+
+
+DATABASES = {"default": _database()}
 
 AUTH_USER_MODEL = "accounts.User"
 AUTHENTICATION_BACKENDS = ["accounts.backends.EmailBackend"]
@@ -97,8 +105,15 @@ if env("EMAIL_HOST"):
     EMAIL_USE_TLS = env("EMAIL_USE_TLS", "1") == "1"
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Brightloop <billing@brightloop.local>")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Brightloop Studio <billing@brightloop.local>")
 PASSWORD_RESET_TIMEOUT = 3600
+# Django builds Message-IDs from the machine's FQDN; a reverse-DNS lookup can stall the first email by seconds.
+# Pin it so mail never waits on DNS. Override with EMAIL_FQDN to match your sending domain.
+from django.core.mail.utils import DNS_NAME  # noqa: E402
+DNS_NAME._fqdn = env("EMAIL_FQDN", "brightloop.local")
+RAZORPAY_KEY_ID = env("RAZORPAY_KEY_ID")
+RAZORPAY_KEY_SECRET = env("RAZORPAY_KEY_SECRET")
+RAZORPAY_WEBHOOK_SECRET = env("RAZORPAY_WEBHOOK_SECRET")
 COMPANY_NAME = "Brightloop Studio"
 SITE_URL = env("SITE_URL", "http://localhost:8765").rstrip("/")
 CURRENCY_SYMBOL = "₹"

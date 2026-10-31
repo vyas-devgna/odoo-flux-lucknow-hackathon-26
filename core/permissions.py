@@ -25,3 +25,16 @@ customer_required = _guard(lambda u: u.role == "customer" and hasattr(u, "custom
 def cap_required(*caps):
     """Staff need at least one of the capability flags; admins always pass. Enforced server-side on every request."""
     return _guard(lambda u: u.is_internal and any(u.has_cap(c) for c in caps))
+
+
+def safe_next(request, default):
+    """Only allow same-site relative paths or URL names as post-action redirects (no open redirect)."""
+    from django.urls import NoReverseMatch, reverse
+    from django.utils.http import url_has_allowed_host_and_scheme
+    nxt = request.POST.get("next") or ""
+    if nxt.startswith("/") and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
+        return nxt
+    try:
+        return reverse(nxt) if nxt else default
+    except NoReverseMatch:
+        return default

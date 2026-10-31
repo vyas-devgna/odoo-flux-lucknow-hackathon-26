@@ -13,3 +13,5 @@ db.sqlite3-*
 staticfiles/
 .env
 backups/
+.scheduled.lock
+test_db.sqlite3

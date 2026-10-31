@@ -10,7 +10,7 @@ from django.urls import reverse
 from accounts.models import Customer, User
 from billing import services as billing
 from billing.models import Invoice
-from catalog.models import Product
+from catalog.models import Plan, Product
 from core.models import AuditLog, Task
 from subscriptions import services as subs
 from subscriptions.models import Subscription
@@ -35,10 +35,10 @@ class Smoke(TestCase):
                                   "core:settings", "core:settings_payments", "core:automation", "core:automation_rule", "core:outbox", "core:audit", "store:home", "core:search")]
         u += [reverse("subscriptions:detail", args=[sub.pk]), reverse("subscriptions:edit", args=[draft.pk]), reverse("subscriptions:change", args=[sub.pk]), reverse("subscriptions:print", args=[sub.pk]),
               reverse("billing:detail", args=[inv.pk]), reverse("billing:detail", args=[cn.pk]), reverse("billing:print", args=[inv.pk]), reverse("billing:pdf", args=[inv.pk]),
-              reverse("core:customer_edit", args=[cust.pk]), reverse("core:customer_statement", args=[cust.pk]), reverse("store:plan", args=[1])]
+              reverse("core:customer_edit", args=[cust.pk]), reverse("core:customer_statement", args=[cust.pk]), reverse("store:plan", args=[Plan.objects.filter(published=True).first().pk])]
         for r in ("products", "plans", "taxes", "categories", "templates", "discounts"):
             u += [reverse(f"catalog:{r}_list"), reverse(f"catalog:{r}_new")]
-        u += [reverse("catalog:products_edit", args=[Product.objects.first().pk]), reverse("catalog:plans_edit", args=[1])]
+        u += [reverse("catalog:products_edit", args=[Product.objects.first().pk]), reverse("catalog:plans_edit", args=[Plan.objects.first().pk])]
         return u
 
     def test_every_staff_page_renders_for_admin(self):

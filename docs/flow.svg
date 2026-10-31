@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 90" role="img" aria-label="Quotation to contract to invoice to payment to reports">
+<style>text{font:600 13px Inter,system-ui,sans-serif;fill:#0c0d10}rect{fill:#fff;stroke:#e1e4ea;rx:12}path{stroke:#8a8f9b;stroke-width:2;fill:none}.a{fill:#ff8a1f;stroke:none}</style>
+<rect x="4" y="22" width="130" height="46"/><text x="69" y="50" text-anchor="middle">Quotation</text>
+<path d="M134 45h40"/><rect x="174" y="22" width="130" height="46"/><text x="239" y="50" text-anchor="middle">Contract</text>
+<path d="M304 45h40"/><rect x="344" y="22" width="130" height="46"/><text x="409" y="50" text-anchor="middle">Billing run</text>
+<path d="M474 45h40"/><rect x="514" y="22" width="130" height="46"/><text x="579" y="50" text-anchor="middle">Invoice</text>
+<path d="M644 45h40"/><rect x="684" y="22" width="130" height="46"/><text x="749" y="50" text-anchor="middle">Payment</text>
+<circle class="a" cx="860" cy="45" r="8"/><path d="M814 45h38"/></svg>

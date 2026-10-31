@@ -117,8 +117,10 @@ NOFILTER = Filters()
 # ---------------------------------------------------------------- recurring revenue (movement based)
 def _movements(f):
     """[(effective_date, movement, delta, subscription_id)] for filtered changes with a non-zero delta. One query."""
-    rows = f.changes().exclude(mrr_before=F("mrr_after")).values_list("effective_date", "movement", "mrr_before", "mrr_after", "subscription_id")
-    return [(d, m, a - b, s) for d, m, b, a, s in rows]
+    def load():
+        rows = f.changes().exclude(mrr_before=F("mrr_after")).values_list("effective_date", "movement", "mrr_before", "mrr_after", "subscription_id")
+        return [(d, m, a - b, s) for d, m, b, a, s in rows]
+    return reports_cache.cached("movements", load, ttl=120, extra=f.key)
 
 
 def mrr_at(day, f=NOFILTER):
@@ -228,12 +230,15 @@ def month_series(n=12, f=NOFILTER, today=None):
     today = today or timezone.localdate()
 
     def build():
+        from django.db.models.functions import TruncMonth
         first = month_start(today, n - 1)
         inv, pay = defaultdict(lambda: D0), defaultdict(lambda: D0)
-        for d, t in f.invoices(Invoice.objects.exclude(state=Invoice.CANCELLED).filter(issue_date__gte=first)).values_list("issue_date", "total"):
-            inv[(d.year, d.month)] += t
-        for d, t in f.payments(Payment.objects.filter(status=Payment.SUCCEEDED, is_test=False, date__gte=first)).values_list("date", "amount"):
-            pay[(d.year, d.month)] += t
+        for m, t in (f.invoices(Invoice.objects.exclude(state=Invoice.CANCELLED).filter(issue_date__gte=first))
+                     .annotate(m=TruncMonth("issue_date")).values_list("m").annotate(t=Sum("total"))):
+            inv[(m.year, m.month)] = t
+        for m, t in (f.payments(Payment.objects.filter(status=Payment.SUCCEEDED, is_test=False, date__gte=first))
+                     .annotate(m=TruncMonth("date")).values_list("m").annotate(t=Sum("amount"))):
+            pay[(m.year, m.month)] = t
         out = []
         for i in range(n - 1, -1, -1):
             ms = month_start(today, i)

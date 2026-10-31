@@ -234,3 +234,7 @@ main{animation:page-in .28s var(--ease)}@keyframes page-in{from{opacity:0;transf
   .fs-table thead{display:none}.fs-table tr.formset-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px var(--sp-4);border-bottom:1px solid var(--line)}.fs-table td{display:block;padding:0!important;border:0}.fs-table td::before{content:attr(data-l);display:block;font-size:var(--fs-xs);color:var(--mute);margin-bottom:4px}
   .toasts{left:var(--sp-4);right:var(--sp-4);width:auto;bottom:var(--sp-4)}.btn,.chip-btn,.icon-btn,.input{min-height:40px}}
 @media print{.topbar,.subnav,.toasts,.no-print,.pagehead .acts{display:none!important}body{background:#fff}.wrap{padding:0}.card{box-shadow:none;border:0}}
+/* stretched links: the whole history row is one real link (keyboard, middle-click, and boosted navigation all work) */
+.hist .row{position:relative}.stretch::after{content:"";position:absolute;inset:0;z-index:1}.hist .row input.cb{position:relative;z-index:2}.hist .row:focus-within{background:var(--soft)}
+.stretch:focus-visible{outline:none}.stretch:focus-visible::after{outline:2px solid var(--accent);outline-offset:-2px;border-radius:4px}
+.hist .row{cursor:pointer}

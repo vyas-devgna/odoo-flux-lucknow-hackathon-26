@@ -3,6 +3,7 @@ from unittest import mock
 
 from django.core import mail
 from django.core.management import call_command
+from django.db import connection
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -130,6 +131,7 @@ class Commands(Base):
         self.assertEqual(Invoice.objects.count(), 1)
         self.assertEqual(Outbox.objects.filter(status="pending").count(), 0)
 
+    @__import__('unittest').skipUnless(connection.vendor == 'sqlite', 'SQLite backup path; PostgreSQL uses pg_dump')
     def test_backup_writes_a_restorable_copy(self):
         import sqlite3
         import tempfile

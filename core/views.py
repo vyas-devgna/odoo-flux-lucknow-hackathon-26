@@ -19,7 +19,7 @@ from billing.models import Invoice, Payment
 from catalog.models import Plan, Product, Tax
 from subscriptions.models import Subscription
 
-from . import audit, reports
+from . import audit, csvsafe, reports
 from .crud import paginate
 from .models import Notification, Task
 from .permissions import cap_required, internal_required
@@ -199,7 +199,7 @@ def _csv(name, header, rows):
     w = csv.writer(resp)
     w.writerow(header)
     for r in rows:
-        w.writerow(r)
+        w.writerow(csvsafe.row(r))
     return resp
 
 

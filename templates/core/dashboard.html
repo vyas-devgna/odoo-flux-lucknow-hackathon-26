@@ -17,7 +17,7 @@
 <div class="card flush hist"><header><h2>Recent activity</h2><div class="pill-row"><a class="chip-btn" href="{% url 'billing:list' %}">Invoices</a><a class="chip-btn" href="{% url 'billing:payments' %}">Payments</a></div></header>
 <div class="hist-head" style="margin-top:14px"><span></span><span>Customer</span><span>Type</span><span>Status</span><span class="right">Amount</span><span></span></div>
 {% for g in feed %}<div class="day"><span>{{ g.label }}</span><span>{{ g.items|length }} item{{ g.items|length|pluralize }}</span></div>
-{% for r in g.items %}<div class="row" data-href="{% url 'billing:detail' r.obj.pk %}"><span class="logo-c" style="background:{{ r.title|avatar_color }}">{{ r.title|initials }}</span><div class="who"><b>{{ r.title }}</b><span>{{ r.ref }}</span></div>
+{% for r in g.items %}<div class="row"><span class="logo-c" style="background:{{ r.title|avatar_color }}">{{ r.title|initials }}</span><div class="who"><b><a class="stretch" href="{% url 'billing:detail' r.obj.pk %}">{{ r.title }}</a></b><span>{{ r.ref }}</span></div>
 <span class="mid">{% if r.kind == 'payment' %}<span class="tag">Payment · {{ r.method }}</span>{% else %}<span class="tag">{% if r.state == 'credit' %}Credit note{% else %}Invoice{% endif %}</span>{% endif %}</span><span class="st">{% badge r.state %}</span><span class="amt {% if r.kind == 'payment' and r.amount > 0 and r.state == 'paid' %}in{% elif r.amount < 0 %}out{% endif %}">{% if r.kind == 'payment' and r.amount > 0 and r.state == 'paid' %}+{% endif %}{{ r.amount|money }}</span>{% icon 'right' %}</div>{% endfor %}
 {% empty %}<div class="empty"><span class="art">{% icon 'file' %}</span><b>No activity yet</b></div>{% endfor %}</div></div>
 <div class="stack">

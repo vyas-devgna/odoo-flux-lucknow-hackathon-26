@@ -154,3 +154,45 @@ class PortalIsolation(Base):
         self.my_inv.refresh_from_db()
         self.assertEqual(self.my_inv.amount_paid, 0)
         self.assertEqual(self.my_inv.payments.get().status, "pending")
+
+
+class Hardening(Base):
+    def test_csv_exports_neutralise_formulas(self):
+        from core import csvsafe
+        self.assertEqual(csvsafe.safe("=HYPERLINK(\"http://evil\")"), "'=HYPERLINK(\"http://evil\")")
+        self.assertEqual(csvsafe.safe("@cmd"), "'@cmd")
+        self.assertEqual(csvsafe.safe("Plain"), "Plain")
+        self.assertEqual(csvsafe.safe(12), 12)
+        Customer.objects.create(name="=1+1", email="f@x.test")
+        self.client.force_login(self.u["admin"])
+        body = self.client.get(reverse("core:export", args=["customers"])).content.decode()
+        self.assertIn("'=1+1", body)
+        self.assertNotIn("\n=1+1", body)
+
+    def test_post_redirect_targets_cannot_leave_the_site(self):
+        s = make_active(self.plan, self.cust, self.today)
+        billing.run_billing(self.today)
+        inv = Invoice.objects.get()
+        billing.confirm_invoice(inv)
+        self.client.force_login(self.u["admin"])
+        for evil in ("https://evil.example/", "//evil.example/x", "javascript:alert(1)"):
+            r = self.client.post(reverse("billing:quick_pay"), {"invoice": inv.pk, "amount": "1", "method": "bank", "date": self.today.isoformat(), "next": evil})
+            self.assertTrue(r.url.startswith("/") and not r.url.startswith("//"), (evil, r.url))
+        r = self.client.post(reverse("billing:quick_pay"), {"invoice": inv.pk, "amount": "1", "method": "bank", "date": self.today.isoformat(), "next": "/billing/payments/"})
+        self.assertEqual(r.url, "/billing/payments/")
+
+    def test_security_headers(self):
+        self.client.force_login(self.u["admin"])
+        r = self.client.get(reverse("core:dashboard"))
+        self.assertEqual(r["X-Frame-Options"], "DENY")
+        self.assertEqual(r["X-Content-Type-Options"], "nosniff")
+
+    def test_unauthenticated_post_to_state_changing_urls_redirects_to_login(self):
+        for url in (reverse("billing:runs"), reverse("billing:bulk"), reverse("subscriptions:action", args=[1, "activate"])):
+            r = self.client.post(url)
+            self.assertEqual(r.status_code, 302)
+            self.assertIn("/accounts/login/", r.url)
+
+    def test_webhook_rejects_get_and_unsigned_post(self):
+        self.assertEqual(self.client.get(reverse("billing:razorpay_webhook")).status_code, 405)
+        self.assertEqual(self.client.post(reverse("billing:razorpay_webhook"), data="{}", content_type="application/json").status_code, 400)

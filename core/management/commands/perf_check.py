@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 from django.test import Client
 from django.urls import reverse
 
-from accounts.models import User
+from accounts.models import Customer, User
 from billing.models import Invoice
 from subscriptions.models import Subscription
 
@@ -17,24 +17,32 @@ class Command(BaseCommand):
 
     def add_arguments(self, p):
         p.add_argument("--runs", type=int, default=5)
+        p.add_argument("--cold", action="store_true", help="Clear the report cache before every request (worst case).")
 
-    def handle(self, *a, runs=5, **o):
+    def handle(self, *a, runs=5, cold=False, **o):
         c = Client(HTTP_HOST="localhost")
         c.force_login(User.objects.filter(role="admin").first())
+        c.get(reverse("core:dashboard"))  # warm any caches the way a second visit would
         sub, inv = Subscription.objects.first(), Invoice.objects.first()
+        from billing.models import Payment
+        cust = Customer.objects.exclude(email__startswith="bulk").first()
         pages = {
-            "dashboard": reverse("core:dashboard"), "reports": reverse("core:reports"),
-            "reports (overdue filter, plan)": reverse("core:reports") + "?view=overdue", "subscriptions": reverse("subscriptions:list"),
-            "subscriptions (page 40)": reverse("subscriptions:list") + "?page=40", "subscriptions (search)": reverse("subscriptions:list") + "?q=Bulk Customer 77",
-            "subscriptions (active)": reverse("subscriptions:list") + "?state=active", "invoices": reverse("billing:list"),
-            "invoices (overdue)": reverse("billing:list") + "?status=overdue", "payments": reverse("billing:payments"),
-            "customers": reverse("core:customers"), "subscription detail": reverse("subscriptions:detail", args=[sub.pk]),
-            "invoice detail": reverse("billing:detail", args=[inv.pk])}
+            "overview": reverse("core:dashboard"), "revenue report": reverse("core:reports"), "MRR report": reverse("core:report_mrr"), "retention report": reverse("core:report_retention"),
+            "receivables report": reverse("core:report_receivables"), "breakdown (by customer)": reverse("core:report_breakdown") + "?by=customer",
+            "subscriptions": reverse("subscriptions:list"), "subscriptions (page 40)": reverse("subscriptions:list") + "?page=40", "subscriptions (search)": reverse("subscriptions:list") + "?q=Bulk Customer 77",
+            "subscriptions (active, sorted)": reverse("subscriptions:list") + "?state=active&sort=-customer", "quotations": reverse("subscriptions:quotes"), "pipeline": reverse("subscriptions:pipeline"),
+            "renewals": reverse("subscriptions:renewals"), "changes": reverse("subscriptions:changes"), "invoices": reverse("billing:list"), "invoices (overdue)": reverse("billing:list") + "?status=overdue",
+            "invoices (search)": reverse("billing:list") + "?q=INV/B/10", "payments": reverse("billing:payments"), "customers": reverse("core:customers"), "customer search": reverse("core:search") + "?q=Bulk Customer 5",
+            "subscription detail": reverse("subscriptions:detail", args=[sub.pk]), "invoice detail": reverse("billing:detail", args=[inv.pk]), "billing runs": reverse("billing:runs"),
+            "audit log": reverse("core:audit"), "invoice PDF": reverse("billing:pdf", args=[inv.pk]), "customer export (CSV)": reverse("core:export", args=["customers"])}
         self.stdout.write(f"{Subscription.objects.count()} subscriptions · {Invoice.objects.count()} invoices")
         worst = 0
         for name, url in pages.items():
             times = []
             for _ in range(runs):
+                if cold:
+                    from django.core.cache import cache
+                    cache.clear()
                 t = time.perf_counter()
                 r = c.get(url)
                 times.append(time.perf_counter() - t)

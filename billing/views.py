@@ -8,9 +8,9 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from core import audit, reports
+from core import audit, csvsafe, reports
 from core.crud import apply_sort, paginate
-from core.permissions import cap_required
+from core.permissions import cap_required, safe_next
 
 from . import providers, services
 from .forms import CreditNoteForm, PaymentForm, RefundForm
@@ -54,7 +54,7 @@ def invoice_list(request):
         w = csv.writer(resp)
         w.writerow(["Number", "Customer", "Subscription", "Kind", "Issued", "Due", "State", "Total", "Credited", "Paid", "Balance"])
         for i in qs.iterator():
-            w.writerow([i.number, i.bill_to_name, i.subscription.number, i.kind, i.issue_date, i.due_date, i.display_state, i.total, i.credited_total, i.amount_paid, i.balance])
+            w.writerow(csvsafe.row([i.number, i.bill_to_name, i.subscription.number, i.kind, i.issue_date, i.due_date, i.display_state, i.total, i.credited_total, i.amount_paid, i.balance]))
         return resp
     qs, sort = apply_sort(request, qs, {"issued": "issue_date", "due": "due_date", "amount": "total"}, "-issued")
     page = paginate(request, qs)
@@ -208,7 +208,7 @@ def bulk_selected(request):
         messages.success(request, f"{ok} invoice(s) updated ({action}).")
     if bad:
         messages.warning(request, f"{bad} skipped (wrong state or not eligible).")
-    return redirect(request.POST.get("next") or "billing:list")
+    return redirect(safe_next(request, "billing:list"))
 
 
 @billing_only
@@ -277,7 +277,7 @@ def billing_runs(request):
 def quick_pay(request):
     inv = get_object_or_404(Invoice, pk=request.POST.get("invoice") or 0)
     form = PaymentForm(request.POST)
-    nxt = request.POST.get("next") or "core:dashboard"
+    nxt = safe_next(request, "core:dashboard")
     if form.is_valid():
         d = form.cleaned_data
         try:

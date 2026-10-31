@@ -4,6 +4,9 @@ const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [..
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
+/* navigate through htmx boost (keeps URL + title in sync) */
+function go(url) { const a = document.createElement('a'); a.href = url; a.hidden = true; document.body.appendChild(a); if (window.htmx) htmx.process(a); a.click(); setTimeout(() => a.remove(), 0); }
+
 /* ---------- toasts */
 function toast(msg, tone = 'info', ms = 5200) {
   const box = $('#toasts'); if (!box) return;
@@ -43,7 +46,6 @@ document.addEventListener('click', e => {
   if (btn) { const body = $(btn.dataset.addRow), total = document.getElementById(`id_${btn.dataset.prefix}-TOTAL_FORMS`);
     body.insertAdjacentHTML('beforeend', document.getElementById('empty-row').innerHTML.replaceAll('__prefix__', total.value)); total.value = +total.value + 1;
     body.lastElementChild.dispatchEvent(new CustomEvent('rowadded', { bubbles: true })); body.lastElementChild.querySelector('select,input')?.focus(); }
-  const r = e.target.closest('[data-href]'); if (r && !e.target.closest('a,button,input,select,label,summary')) { if (window.htmx) htmx.ajax('GET', r.dataset.href, { target: 'body', swap: 'outerHTML', pushURL: true }).catch(() => location.href = r.dataset.href); else location.href = r.dataset.href; }
 });
 document.addEventListener('change', e => {
   const bulk = $('#bulkbar'); if (!bulk) return; const all = $('#cb-all'), boxes = $$('input.cb[name=ids]');
@@ -117,15 +119,15 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') palClose();
     if (e.key === 'ArrowDown') { palIdx = Math.min(palIdx + 1, palItems.length - 1); palRender(); e.preventDefault(); }
     if (e.key === 'ArrowUp') { palIdx = Math.max(palIdx - 1, 0); palRender(); e.preventDefault(); }
-    if (e.key === 'Enter' && palItems[palIdx]) { e.preventDefault(); const u = palItems[palIdx].u; palClose(); window.htmx ? htmx.ajax('GET', u, { target: 'body', swap: 'outerHTML', pushURL: true }) : location.href = u; }
+    if (e.key === 'Enter' && palItems[palIdx]) { e.preventDefault(); const u = palItems[palIdx].u; palClose(); go(u); }
     return;
   }
   if (typing || e.ctrlKey || e.metaKey || e.altKey || !pal) return;
   if (e.key === '/') { e.preventDefault(); palOpen(); }
   else if (e.key === '?') $('#help')?.showModal();
-  else if (e.key === 'n') location.href = '/subscriptions/new/';
+  else if (e.key === 'n') go('/subscriptions/new/');
   else if (e.key === 'g') { gPending = Date.now(); }
-  else if (gPending && Date.now() - gPending < 1200 && GO[e.key]) { gPending = 0; location.href = GO[e.key]; }
+  else if (gPending && Date.now() - gPending < 1200 && GO[e.key]) { gPending = 0; go(GO[e.key]); }
 });
 
 /* ---------- init (runs on load and after every boosted navigation) */

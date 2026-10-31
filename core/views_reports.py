@@ -11,6 +11,7 @@ from catalog.models import Plan, Product
 from subscriptions.models import Subscription
 
 from . import reports
+from . import csvsafe
 from .crud import paginate
 from .permissions import cap_required
 
@@ -36,7 +37,7 @@ def _csv(name, header, rows):
     resp["Content-Disposition"] = f'attachment; filename="{name}.csv"'
     w = csv.writer(resp)
     w.writerow(header)
-    w.writerows(rows)
+    w.writerows(csvsafe.row(r) for r in rows)
     return resp
 
 
