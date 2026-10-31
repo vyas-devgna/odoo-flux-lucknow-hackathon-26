@@ -33,14 +33,17 @@ def queue_email(to, subject, body, *, dedupe_key=None, related=None, reply_to=No
 
 
 def deliver_one(pk):
-    row = Outbox.objects.filter(pk=pk, status=Outbox.PENDING).first()
-    if not row:
+    claimed = Outbox.objects.filter(pk=pk, status=Outbox.PENDING).update(
+        status=Outbox.SENDING, next_attempt_at=timezone.now() + timedelta(minutes=10))
+    if not claimed:
         return False
+    row = Outbox.objects.get(pk=pk)
     try:
         EmailMessage(row.subject, row.body, to=[row.to], reply_to=[row.reply_to] if row.reply_to else None).send(fail_silently=False)
     except Exception as e:  # network/SMTP failure: keep the row, back off
         row.attempts += 1
         row.last_error = str(e)[:300]
+        row.status = Outbox.PENDING
         if row.attempts >= MAX_ATTEMPTS:
             row.status = Outbox.FAILED
         else:
@@ -65,6 +68,9 @@ def flush(limit=200):
     return sent, failed
 
 
-def retry(pk):
-    Outbox.objects.filter(pk=pk, status=Outbox.FAILED).update(status=Outbox.PENDING, attempts=0, next_attempt_at=timezone.now())
+def retry(pk, *, reviewed=False):
+    rows = Outbox.objects.filter(pk=pk, status=Outbox.FAILED)
+    if reviewed:
+        rows = Outbox.objects.filter(pk=pk, status=Outbox.SENDING, next_attempt_at__lte=timezone.now())
+    rows.update(status=Outbox.PENDING, attempts=0, next_attempt_at=timezone.now())
     return deliver_one(pk)

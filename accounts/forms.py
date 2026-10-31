@@ -2,6 +2,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.password_validation import validate_password
+from django.db import transaction
 
 from .models import Customer
 
@@ -49,15 +50,13 @@ class SignupForm(forms.Form):
                 self.add_error("password", e)
         return data
 
+    @transaction.atomic
     def save(self):
         d = self.cleaned_data
         user = User.objects.create_user(d["email"], d["password"], name=d["name"], role=User.CUSTOMER)
-        # Adopt a customer record that staff prepared for this email, otherwise create one.
+        # Existing financial records require emailed proof of ownership before linking.
         cust = Customer.objects.filter(email__iexact=d["email"], user__isnull=True).first()
-        if cust:
-            cust.user = user
-            cust.save(update_fields=["user"])
-        else:
+        if cust is None:
             Customer.objects.create(user=user, name=d["name"], email=d["email"], company=d["company"])
         return user
 

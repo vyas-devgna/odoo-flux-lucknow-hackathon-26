@@ -97,10 +97,10 @@ class Smoke(TestCase):
             self.assertEqual(inv.total, inv.subtotal - inv.discount_total + inv.tax_total, inv.number)
             self.assertGreaterEqual(inv.balance, 0 if inv.state != "paid" else -1000000)
 
-    def test_page_html_has_no_competitor_branding(self):
+    def test_page_html_uses_brightloop_branding(self):
         self.client.force_login(User.objects.get(email="admin@brightloop.test"))
         for u in (reverse("core:dashboard"), reverse("store:home"), reverse("billing:list")):
-            self.assertNotIn("odoo", self.client.get(u).content.decode().lower())
+            self.assertContains(self.client.get(u), "Brightloop Studio")
 
 
 class QueryBudgets(Base):

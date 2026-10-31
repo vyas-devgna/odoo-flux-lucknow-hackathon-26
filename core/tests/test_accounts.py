@@ -24,12 +24,42 @@ class SignupAndLogin(Base):
         self.assertEqual(self.signup("N@X.test").status_code, 200)
         self.assertEqual(User.objects.filter(email="n@x.test").count(), 1)
 
-    def test_signup_adopts_prepared_customer(self):
+    def test_signup_requires_email_verification_to_adopt_prepared_customer(self):
         prepared = Customer.objects.create(name="Prep", email="prep@x.test")
         self.signup("prep@x.test")
         prepared.refresh_from_db()
+        self.assertIsNone(prepared.user_id)
+        self.assertEqual(self.client.get(reverse("core:portal")).status_code, 403)
+        from core.models import Outbox
+        import re
+        message = Outbox.objects.get(subject="Verify your Brightloop email")
+        link = re.search(r"/accounts/verify/[^\s]+", message.body).group(0)
+        self.assertEqual(self.client.get(link).status_code, 302)
+        prepared.refresh_from_db()
         self.assertIsNotNone(prepared.user_id)
         self.assertEqual(Customer.objects.filter(email="prep@x.test").count(), 1)
+
+    def test_invalid_and_expired_verification_cannot_link_a_customer(self):
+        from django.core import signing
+        from unittest.mock import patch
+        from accounts.services import VERIFY_SALT
+        prepared = Customer.objects.create(name="Prep", email="prep@x.test")
+        self.signup("prep@x.test")
+        user = User.objects.get(email="prep@x.test")
+        with patch("django.core.signing.time.time", return_value=0):
+            expired = signing.dumps({"user": user.pk, "customer": prepared.pk}, salt=VERIFY_SALT)
+        for token in ("invalid", expired):
+            self.client.get(reverse("accounts:verify_customer", args=[token]))
+        prepared.refresh_from_db()
+        self.assertIsNone(prepared.user_id)
+
+    def test_verification_resend_is_rate_limited(self):
+        from core.models import Outbox
+        Customer.objects.create(name="Prep", email="prep@x.test")
+        self.signup("prep@x.test")
+        for _ in range(5):
+            self.client.post(reverse("accounts:verify_pending"))
+        self.assertEqual(Outbox.objects.filter(subject="Verify your Brightloop email").count(), 4)
 
     def test_signup_next_redirect_is_safe(self):
         r = self.client.post(reverse("accounts:signup"), {"name": "N", "email": "s@x.test", "password": PW, "confirm": PW, "next": "https://evil.example/"})

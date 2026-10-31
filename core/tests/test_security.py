@@ -78,6 +78,20 @@ class Authorisation(Base):
         self.assertEqual(self.status("finance", "get", reverse("core:export", args=["payments"])), 200)
         self.assertEqual(self.status("sales", "get", reverse("core:export", args=["customers"])), 200)
 
+    def test_search_and_palette_only_offer_authorized_records_and_actions(self):
+        self.client.force_login(self.u["sales"])
+        response = self.client.get(reverse("core:search"), {"q": "INV", "fmt": "json"})
+        self.assertFalse(any(row["k"] == "Invoices" for row in response.json()["results"]))
+        self.client.force_login(self.u["finance"])
+        response = self.client.get(reverse("core:dashboard"))
+        commands = response.context["COMMANDS"]
+        self.assertFalse(any(row["t"] in ("New subscription", "New customer", "Run billing") for row in commands))
+        restricted = User.objects.create_user("catalog-only@x.test", PW, role="staff", can_sales=False,
+                                              can_billing=False, can_finance=False, can_catalog=True)
+        self.client.force_login(restricted)
+        response = self.client.get(reverse("core:search"), {"q": "Alex", "fmt": "json"})
+        self.assertEqual(response.json()["results"], [])
+
 
 class PortalIsolation(Base):
     def setUp(self):
@@ -127,7 +141,7 @@ class PortalIsolation(Base):
         url = reverse("core:portal_action", args=[s.pk, "accept"])
         self.client.post(url, {"signed_name": "", "agree": "on"})
         self.assertEqual(Subscription.objects.get(pk=s.pk).state, "quotation")
-        self.client.post(url, {"signed_name": "Me Myself", "agree": "on"})
+        self.client.post(url, {"signed_name": "Me Myself", "agree": "on", "revision": s.revision})
         s.refresh_from_db()
         self.assertEqual(s.state, "confirmed")
         a = s.acceptances.get()

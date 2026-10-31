@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from django.db import models
+from django.db import connection, models, transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -15,7 +15,9 @@ class Invoice(models.Model):
     STATES = [(DRAFT, "Draft"), (CONFIRMED, "Confirmed"), (PAID, "Paid"), (CANCELLED, "Cancelled")]
     RECURRING, ADJUSTMENT, CREDIT_NOTE, ONE_OFF = "recurring", "adjustment", "credit_note", "one_off"
     KINDS = [(RECURRING, "Recurring"), (ADJUSTMENT, "Adjustment"), (CREDIT_NOTE, "Credit note"), (ONE_OFF, "One-off")]
-    MONEY_FIELDS = ("subtotal", "discount_total", "tax_total", "total", "period_start", "period_end", "customer_id", "subscription_id", "kind")
+    SNAPSHOT_FIELDS = ("number", "kind", "subscription_id", "customer_id", "period_start", "period_end", "issue_date", "due_date",
+                       "bill_to_name", "bill_to_email", "bill_to_address", "bill_to_tax_id", "subtotal", "discount_total", "tax_total", "total",
+                       "discount_label", "replaces_id", "credit_for_id")
 
     number = models.CharField(max_length=24, unique=True, editable=False)
     kind = models.CharField(max_length=12, default=RECURRING, choices=KINDS, db_index=True)
@@ -58,12 +60,15 @@ class Invoice(models.Model):
     def __str__(self):
         return self.number
 
+    @transaction.atomic
     def save(self, *a, **kw):
         creating = not self.pk
-        if not creating and self.finalized_at:
-            # Financial snapshot is frozen once finalized. Payments/credits/state may change; amounts and period may not.
-            old = Invoice.objects.filter(pk=self.pk).values(*self.MONEY_FIELDS).first()
-            if old and any(old[f] != getattr(self, f) for f in self.MONEY_FIELDS):
+        if not creating:
+            qs = Invoice.objects.filter(pk=self.pk)
+            if connection.features.has_select_for_update:
+                qs = qs.select_for_update()
+            old = qs.values(*self.SNAPSHOT_FIELDS, "finalized_at").first()
+            if old and old["finalized_at"] and (old["finalized_at"] != self.finalized_at or any(old[f] != getattr(self, f) for f in self.SNAPSHOT_FIELDS)):
                 raise ValidationError("A finalized invoice cannot be edited. Issue a credit note or replacement instead.")
         if creating:
             self.number = f"TMP-{uuid.uuid4().hex[:14]}"
@@ -122,6 +127,7 @@ class Invoice(models.Model):
 
 
 class InvoiceLine(models.Model):
+    # shortcut: bulk ORM writes bypass these guards; use database enforcement if untrusted bulk writers are introduced.
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="lines")
     product = models.ForeignKey("catalog.Product", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     description = models.CharField(max_length=240)
@@ -135,6 +141,27 @@ class InvoiceLine(models.Model):
 
     class Meta:
         ordering = ["id"]
+
+    @transaction.atomic
+    def save(self, *args, **kwargs):
+        old_invoice_id = InvoiceLine.objects.filter(pk=self.pk).values_list("invoice_id", flat=True).first() if self.pk else None
+        invoice_ids = sorted({invoice_id for invoice_id in (old_invoice_id, self.invoice_id) if invoice_id})
+        invoices = Invoice.objects.filter(pk__in=invoice_ids).order_by("pk")
+        if connection.features.has_select_for_update:
+            invoices = invoices.select_for_update()
+        locked = {invoice.pk: invoice for invoice in invoices}
+        if any(locked[invoice_id].finalized_at for invoice_id in invoice_ids if invoice_id in locked):
+            raise ValidationError("A finalized invoice line cannot be edited, added, or moved.")
+        return super().save(*args, **kwargs)
+
+    @transaction.atomic
+    def delete(self, *args, **kwargs):
+        invoice = Invoice.objects.filter(pk=self.invoice_id)
+        if connection.features.has_select_for_update:
+            invoice = invoice.select_for_update()
+        if invoice.filter(finalized_at__isnull=False).exists():
+            raise ValidationError("A finalized invoice line cannot be removed.")
+        return super().delete(*args, **kwargs)
 
     @property
     def gross(self):

@@ -8,6 +8,8 @@ urlpatterns = [
     path("login/", views.Login.as_view(), name="login"),
     path("logout/", auth.LogoutView.as_view(), name="logout"),
     path("signup/", views.signup, name="signup"),
+    path("verify/", views.verify_pending, name="verify_pending"),
+    path("verify/<str:token>/", views.verify_customer, name="verify_customer"),
     path("password/", views.password_change, name="password_change"),
     path("reset/", views.ThrottledReset.as_view(
         template_name="accounts/reset.html", email_template_name="accounts/reset_email.txt",

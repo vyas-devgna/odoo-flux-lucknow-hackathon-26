@@ -25,8 +25,11 @@ def _require(sub, action):
         raise TransitionError(f"Cannot {action} a {sub.get_state_display().lower()} subscription on plan “{sub.plan.name}”.")
 
 
-def fresh(sub):
-    return Subscription.objects.select_related("plan", "customer").get(pk=sub.pk)
+def fresh(sub, *, lock=False):
+    rows = Subscription.objects.select_related("plan", "customer")
+    if lock:
+        rows = rows.select_for_update(of=("self",))
+    return rows.get(pk=sub.pk)
 
 
 # ------------------------------------------------------------------ change history / MRR movements
@@ -70,8 +73,18 @@ def create_subscription(*, customer, plan, template=None, start_date=None, expir
                         notes="", user=None, quantity=None, salesperson=None, validity_days=None):
     start_date = start_date or timezone.localdate()
     validity = validity_days or (template.validity_days if template else 30)
-    qty = max(quantity or plan.min_quantity, plan.min_quantity)
+    qty = plan.min_quantity if quantity is None else quantity
+    if isinstance(qty, bool) or not isinstance(qty, int) or not plan.min_quantity <= qty <= 1_000_000:
+        raise TransitionError(f"Enter a whole-number quantity between {plan.min_quantity} and 1,000,000.")
+    if not plan.is_available(start_date):
+        raise TransitionError("This plan is not available on the contract start date.")
+    if template and (not template.active or template.plan_id != plan.pk):
+        raise TransitionError("Choose an active quotation template for this plan.")
+    if expiry_date and expiry_date <= start_date:
+        raise TransitionError("The contract end date must be after its start date.")
     terms = payment_terms or plan.payment_terms or CompanySettings.get().default_payment_terms
+    if terms not in dict(Subscription._meta.get_field("payment_terms").choices):
+        raise TransitionError("Choose valid payment terms.")
     with transaction.atomic():
         sub = Subscription.objects.create(
             customer=customer, plan=plan, template=template, start_date=start_date, payment_terms=terms,
@@ -105,7 +118,9 @@ def clone_as_quote(sub, *, user=None, kind="alternative"):
 
 
 # ------------------------------------------------------------------ quotation workflow
+@transaction.atomic
 def send_quotation(sub, actor=None):
+    sub = fresh(sub, lock=True)
     _require(sub, "send")
     if not sub.lines.exists():
         raise TransitionError("Add at least one line first.")
@@ -126,8 +141,10 @@ def email_quotation(sub, resend=False):
     return mail.queue_email(sub.customer.email, f"Quotation {sub.number} from {co.name}", body, dedupe_key=f"quote:{sub.pk}:{sub.revision}" + (f":{timezone.now().timestamp()}" if resend else ""), related=sub)
 
 
+@transaction.atomic
 def revise_quotation(sub, actor=None):
     """Reopen a sent quotation for editing. Bumps the revision so the previous version's acceptance can't be reused."""
+    sub = fresh(sub, lock=True)
     if sub.state != Subscription.QUOTATION:
         raise TransitionError("Only a sent quotation can be revised.")
     sub.state = Subscription.DRAFT
@@ -141,10 +158,17 @@ def _record_acceptance(sub, actor, signed_name, ip, how):
         ip=ip or None, total_snapshot=sub.total, terms_snapshot=f"{how}; {sub.plan.name}; {sub.get_payment_terms_display()}; starts {sub.start_date:%d %b %Y}")
 
 
-def accept(sub, *, actor=None, signed_name="", ip=None, how="Accepted online"):
+@transaction.atomic
+def accept(sub, *, actor=None, signed_name="", ip=None, how="Accepted online", expected_revision=None):
     """Customer (or staff on their behalf) accepts the quotation. Cancels sibling alternatives and, depending on the
     plan, activates straight away or waits for the first payment."""
+    # Alternatives share the root lock so two accepted choices cannot race.
+    root_id = Subscription.objects.values_list("alternative_of_id", flat=True).get(pk=sub.pk) or sub.pk
+    Subscription.objects.select_for_update().get(pk=root_id)
+    sub = fresh(sub, lock=True)
     _require(sub, "confirm")
+    if expected_revision is not None and str(sub.revision) != str(expected_revision):
+        raise TransitionError("This quotation has changed. Refresh it and review the latest terms before accepting.")
     if sub.quote_expired:
         raise TransitionError("This quotation has expired. Extend its validity date first.")
     if not sub.lines.exists():
@@ -176,7 +200,9 @@ def confirm(sub, actor=None):
     return accept(sub, actor=actor, signed_name=getattr(actor, "name", "") or "", how="Confirmed by staff")
 
 
+@transaction.atomic
 def reject(sub, *, actor=None, reason=""):
+    sub = fresh(sub, lock=True)
     _require(sub, "reject")
     sub.state = Subscription.CANCELLED
     sub.close_note = reason[:300]
@@ -185,7 +211,9 @@ def reject(sub, *, actor=None, reason=""):
 
 
 # ------------------------------------------------------------------ contract lifecycle
+@transaction.atomic
 def activate(sub, *, effective=None, actor=None):
+    sub = fresh(sub, lock=True)
     _require(sub, "activate")
     effective = effective or sub.start_date
     with transaction.atomic():
@@ -198,7 +226,9 @@ def activate(sub, *, effective=None, actor=None):
     return sub
 
 
+@transaction.atomic
 def pause(sub, actor=None):
+    sub = fresh(sub, lock=True)
     _require(sub, "pause")
     before = mrr_of(sub)
     sub.state = Subscription.PAUSED
@@ -207,8 +237,10 @@ def pause(sub, actor=None):
     automation.fire("subscription_paused", sub)
 
 
+@transaction.atomic
 def resume(sub, actor=None):
     """Billing continues from the next unbilled period; paused time is not back-billed."""
+    sub = fresh(sub, lock=True)
     _require(sub, "resume")
     today = timezone.localdate()
     while add_interval(sub.start_date, sub.plan.interval, sub.periods_billed) < today:
@@ -219,9 +251,13 @@ def resume(sub, actor=None):
     record_change(sub, "resumed", before=ZERO, after=mrr_of(sub), actor=actor)
 
 
+@transaction.atomic
 def close(sub, *, actor=None, reason="customer_request", note="", immediate=None, by_customer=False):
     """Close early. Honours the plan's minimum term and cancellation timing; scheduled cancellations are closed by the billing run."""
+    sub = fresh(sub, lock=True)
     _require(sub, "close")
+    if reason not in dict(Subscription.CLOSE_REASONS):
+        raise TransitionError("Choose a valid cancellation reason.")
     if sub.in_minimum_term and by_customer:
         raise TransitionError(f"This plan has a minimum term of {sub.plan.min_duration_periods} billing periods. Please contact us to end it earlier.")
     if by_customer and not sub.plan.self_serve_cancel:
@@ -236,11 +272,13 @@ def close(sub, *, actor=None, reason="customer_request", note="", immediate=None
         record_change(sub, "cancel_scheduled", before=mrr_of(sub), after=mrr_of(sub), effective=end, detail=f"{reason}: ends {end:%d %b %Y}", actor=actor, movement=SubscriptionChange.NONE)
         return sub
     _finish_close(sub, actor=actor)
-    return sub
+    return fresh(sub)
 
 
+@transaction.atomic
 def keep(sub, actor=None):
     """Withdraw a scheduled cancellation."""
+    sub = fresh(sub, lock=True)
     if not sub.pending_cancel_at:
         raise TransitionError("No cancellation is scheduled.")
     sub.pending_cancel_at = None
@@ -249,20 +287,29 @@ def keep(sub, actor=None):
     record_change(sub, "terms", detail="Scheduled cancellation withdrawn", actor=actor)
 
 
+@transaction.atomic
 def _finish_close(sub, *, actor=None, effective=None, movement=None):
+    reason, note = sub.close_reason, sub.close_note
+    sub = fresh(sub, lock=True)
+    if sub.state not in (Subscription.ACTIVE, Subscription.PAUSED):
+        return False
+    sub.close_reason, sub.close_note = reason, note
     before = mrr_of(sub) if sub.state == Subscription.ACTIVE else ZERO
     sub.state = Subscription.CLOSED
     sub.closed_at = timezone.now()
     sub.next_invoice_date = None
     sub.pending_cancel_at = None
-    sub.save(update_fields=["state", "closed_at", "next_invoice_date", "pending_cancel_at"])
+    sub.save(update_fields=["state", "closed_at", "next_invoice_date", "pending_cancel_at", "close_reason", "close_note"])
     record_change(sub, "closed", before=before, after=ZERO, effective=effective, detail=sub.get_close_reason_display() or "", actor=actor, movement=movement)
     automation.fire("subscription_closed", sub)
+    return True
 
 
+@transaction.atomic
 def renew(sub, *, actor=None, accept=False, auto=False):
     """Renewal creates a new linked term; the old record is never reopened.
     accept=False -> a renewal quotation to send; accept=True -> the new term is confirmed and starts at the old expiry."""
+    sub = fresh(sub, lock=True)
     _require(sub, "renew")
     with transaction.atomic():
         start = (sub.expiry_date + timedelta(days=1)) if sub.expiry_date else timezone.localdate()
@@ -309,6 +356,24 @@ def _period(sub, today=None):
     return (idx, start, end) if start <= today <= end else None
 
 
+def _proration_credit_sources(sub, preview, *, lock=False):
+    from billing.models import Invoice
+    _, start, end = preview["period"]
+    invoices = sub.invoices.filter(kind__in=[Invoice.RECURRING, Invoice.ADJUSTMENT],
+                                   period_start__range=(start, end), period_end__gte=preview["today"]).exclude(state=Invoice.CANCELLED)
+    if lock:
+        invoices = invoices.select_for_update()
+    invoices = list(invoices.prefetch_related("lines").order_by("-id"))
+    if any(invoice.kind == Invoice.ADJUSTMENT and invoice.state == Invoice.DRAFT for invoice in invoices):
+        raise TransitionError("Confirm the pending adjustment invoice before reversing this change, or schedule the change for next period.")
+    rates = {row["tax_rate"] for row in preview["diffs"]}
+    sources = [invoice for invoice in invoices if invoice.state in (Invoice.CONFIRMED, Invoice.PAID)
+               and {line.tax_rate for line in invoice.lines.all()} == rates and len(rates) == 1]
+    if sum((invoice.total - invoice.credited_total for invoice in sources), ZERO) < preview["credit"]:
+        raise TransitionError("This credit cannot be allocated safely to issued charges with the same tax rate. Schedule the change for next period or ask billing to review it.")
+    return sources
+
+
 def _target(sub, plan=None, quantity=None, addons=None):
     """Compute the post-change lines without touching the database.
     Returns (keep_updates, additions, removals, notes) where each entry carries the unsaved SubscriptionLine."""
@@ -321,13 +386,17 @@ def _target(sub, plan=None, quantity=None, addons=None):
             raise TransitionError("Switching between billing frequencies isn't supported on a live contract. Create a new subscription instead.")
     pl = _plan_line(sub)
     qty = quantity if quantity is not None else (pl.quantity if pl else 1)
+    if isinstance(qty, bool) or not isinstance(qty, int) or qty > 1_000_000:
+        raise TransitionError("Enter a whole-number quantity up to 1,000,000.")
     if qty < plan.min_quantity:
         raise TransitionError(f"“{plan.name}” has a minimum of {plan.min_quantity}.")
     offered = set(plan.products.values_list("pk", flat=True))
     addons = addons or {}
     for l in sub.lines.select_related("product", "variant", "tax"):
         if l.is_plan_line:
-            new = SubscriptionLine(subscription=sub, label=plan.name, quantity=qty, unit_price=plan.unit_price_for(qty), tax=l.tax,
+            repricing = plan.pk != sub.plan_id or qty != l.quantity
+            new = SubscriptionLine(subscription=sub, label=plan.name if repricing else l.label, quantity=qty,
+                                   unit_price=plan.unit_price_for(qty) if repricing else l.unit_price, tax=l.tax,
                                    is_plan_line=True, recurring=True)
             keep.append((l, new))
         elif l.is_addon and (addons.get(l.product_id) is False or (plan.pk != sub.plan_id and l.product_id not in offered)):
@@ -349,6 +418,8 @@ def _target(sub, plan=None, quantity=None, addons=None):
 def preview_change(sub, *, plan=None, quantity=None, addons=None, effective="now", today=None):
     """Everything the customer or staff member needs to see before committing: old vs new recurring charge,
     the prorated adjustment for the rest of the paid period, the amount due now and the next billing amount."""
+    if effective not in ("now", "next"):
+        raise TransitionError("Choose whether this change starts now or next period.")
     today = today or timezone.localdate()
     sub = fresh(sub)
     plan, qty, keep, adds, removes, notes = _target(sub, plan, quantity, addons)
@@ -392,21 +463,27 @@ def preview_change(sub, *, plan=None, quantity=None, addons=None, effective="now
             adj_net += d
             adj_tax += t
     adj_total = adj_net + adj_tax
+    if adj_total < 0 and base is not None and base.discount_total:
+        raise TransitionError("This period includes a discount. Schedule the reduction for next period to preserve the agreed discount.")
     mrr_before = q(sum((l.net_amount for l in cur if l.recurring), ZERO) * Plan.MONTHLY_FACTOR[sub.plan.interval])
     mrr_after = q(sum((l.net_amount for l in after_lines if l.recurring), ZERO) * Plan.MONTHLY_FACTOR[plan.interval])
-    return dict(plan=plan, quantity=qty, effective=effective, today=today, period=per, fraction=frac, notes=notes,
+    preview = dict(plan=plan, quantity=qty, effective=effective, today=today, period=per, fraction=frac, notes=notes,
                 before_net=before_net, before_total=before_total, after_net=after_net, after_total=after_total,
                 adjust_net=adj_net, adjust_tax=adj_tax, adjust_total=adj_total, due_now=max(adj_total, ZERO), credit=max(-adj_total, ZERO),
                 diffs=diffs, mrr_before=mrr_before, mrr_after=mrr_after, next_amount=after_total, regenerate=base,
                 changed=bool(adds or removes or plan.pk != sub.plan_id or any((o.label, o.quantity, o.unit_price) != (n.label, n.quantity, n.unit_price) for o, n in keep)),
                 addons_added=[a.product.name for a in adds], addons_removed=[r.product.name for r in removes])
+    if per and adj_total < 0:
+        _proration_credit_sources(sub, preview)
+    return preview
 
 
+@transaction.atomic
 def apply_change(sub, *, plan=None, quantity=None, addons=None, effective="now", actor=None, today=None):
     """Commit an amendment. effective='now' prorates the rest of the paid period; 'next' schedules it for the next billing date."""
     today = today or timezone.localdate()
+    sub = fresh(sub, lock=True)
     _require(sub, "change")
-    sub = fresh(sub)
     pv = preview_change(sub, plan=plan, quantity=quantity, addons=addons, effective=effective, today=today)
     if not pv["changed"]:
         raise TransitionError("Nothing to change.")
@@ -435,7 +512,8 @@ def _summary(sub, pv):
 
 
 def _commit(sub, pv, plan, quantity, addons, actor, today, summary):
-    before = mrr_of(sub)
+    credit_sources = _proration_credit_sources(sub, pv, lock=True) if pv["period"] and pv["adjust_total"] < 0 else []
+    before = mrr_of(sub) if sub.state == Subscription.ACTIVE else ZERO
     plan_obj, qty, keep, adds, removes, _ = _target(sub, plan, quantity, addons)
     for old, new in keep:
         if old is not new:
@@ -448,7 +526,7 @@ def _commit(sub, pv, plan, quantity, addons, actor, today, summary):
     if plan_obj.pk != sub.plan_id:
         sub.plan = plan_obj
         sub.save(update_fields=["plan"])
-    after = mrr_of(sub)
+    after = mrr_of(sub) if sub.state == Subscription.ACTIVE else ZERO
     kind = "plan" if pv["plan"].pk != fresh(sub).plan_id or "→" in summary else ("addon" if (adds or removes) and "seats" not in summary else "quantity")
     record_change(sub, kind, before=before, after=after, effective=today, detail=summary, actor=actor)
     audit.log(actor, "subscription.change", sub, summary)
@@ -463,9 +541,15 @@ def _commit(sub, pv, plan, quantity, addons, actor, today, summary):
         if pv["adjust_total"] > 0:
             doc = billing.create_adjustment_invoice(sub, pv["diffs"], pv["period"], today=today, actor=actor)
         elif pv["adjust_total"] < 0:
-            base = sub.invoices.filter(kind="recurring", period_start=pv["period"][1]).exclude(state="cancelled").first()
-            if base:
-                doc = billing.issue_credit_note(base, amount=-pv["adjust_total"], reason=f"Proration: {summary}", actor=actor, cap=True)
+            remaining = -pv["adjust_total"]
+            for invoice in credit_sources:
+                amount = min(remaining, invoice.total - invoice.credited_total)
+                if amount > 0:
+                    credit = billing.issue_credit_note(invoice, amount=amount, reason=f"Proration: {summary}", actor=actor)
+                    doc = doc or credit
+                    remaining -= amount
+                if remaining == 0:
+                    break
     return doc
 
 
@@ -500,16 +584,28 @@ def apply_scheduled(sub, today=None):
     return n
 
 
+@transaction.atomic
 def cancel_scheduled(sc, actor=None):
+    fresh(sc.subscription, lock=True)
+    sc = ScheduledChange.objects.select_for_update().get(pk=sc.pk)
+    if sc.applied_at or sc.cancelled_at:
+        raise TransitionError("This scheduled change has already been applied or cancelled.")
     sc.cancelled_at = timezone.now()
     sc.save(update_fields=["cancelled_at"])
     audit.log(actor, "subscription.change_cancelled", sc.subscription, sc.summary)
 
 
+@transaction.atomic
 def set_addon(sub, product_id, on, *, actor=None):
     """Quick add-on switch. Before the first invoice it takes effect immediately; afterwards from the next billing period."""
+    sub = fresh(sub, lock=True)
     _require(sub, "addons")
-    pid = int(product_id)
+    try:
+        pid = int(product_id)
+    except (TypeError, ValueError):
+        raise TransitionError("Choose a valid add-on.") from None
+    if not Product.objects.filter(pk=pid, type=Product.ADDON).exists():
+        raise TransitionError("Choose a valid add-on.")
     if sub.state == Subscription.CONFIRMED or not sub.periods_billed:
         plan, qty, keep, adds, removes, _ = _target(fresh(sub), None, None, {pid: bool(on)})
         before = mrr_of(sub)
@@ -524,5 +620,7 @@ def set_addon(sub, product_id, on, *, actor=None):
 
 def record_edit(sub, before_mrr, actor=None, detail="Lines or terms edited"):
     """Used after staff edit lines/terms in the form: stores the MRR movement the edit caused."""
-    after = mrr_of(sub)
+    if sub.state != Subscription.ACTIVE:
+        before_mrr = ZERO
+    after = mrr_of(sub) if sub.state == Subscription.ACTIVE else ZERO
     record_change(sub, "price" if after != before_mrr else "terms", before=before_mrr, after=after, detail=detail, actor=actor)

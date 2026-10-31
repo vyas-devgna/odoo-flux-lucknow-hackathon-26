@@ -158,8 +158,16 @@ class Plan(models.Model):
         return (self.active and (not self.available_from or self.available_from <= on)
                 and (not self.available_to or on <= self.available_to))
 
+    @property
+    def billing_unit(self):
+        return {self.DAILY: "day", self.WEEKLY: "week", self.MONTHLY: "month", self.YEARLY: "year"}[self.interval]
+
     def unit_price_for(self, quantity):
         """Base price per unit for a quantity: the highest tier at or below it, else the plan's base price."""
+        tiers = getattr(self, "_prefetched_objects_cache", {}).get("tiers")
+        if tiers is not None:
+            tier = max((t for t in tiers if t.min_quantity <= quantity), key=lambda t: t.min_quantity, default=None)
+            return tier.unit_price if tier else self.price
         tier = self.tiers.filter(min_quantity__lte=quantity).order_by("-min_quantity").first()
         return tier.unit_price if tier else self.price
 

@@ -31,6 +31,8 @@ any_ops = cap_required("sales", "billing", "finance")
 def home(request):
     if not request.user.is_authenticated:
         return redirect("accounts:login")
+    if request.user.role == "customer" and not hasattr(request.user, "customer"):
+        return redirect("accounts:verify_pending")
     return redirect("core:dashboard" if request.user.is_internal else "core:portal")
 
 
@@ -187,10 +189,11 @@ def customer_statement(request, pk):
 def search(request):
     q = request.GET.get("q", "").strip()
     res = {}
-    if len(q) >= 2:
+    if len(q) >= 2 and any(request.user.has_cap(cap) for cap in ("sales", "billing", "finance")):
         res["customers"] = list(Customer.objects.filter(Q(name__icontains=q) | Q(company__icontains=q) | Q(email__icontains=q))[:8])
         res["subscriptions"] = list(Subscription.objects.filter(Q(number__icontains=q) | Q(customer__name__icontains=q) | Q(customer__company__icontains=q)).select_related("customer", "plan")[:8])
-        res["invoices"] = list(Invoice.objects.filter(Q(number__icontains=q) | Q(bill_to_name__icontains=q)).select_related("subscription")[:8])
+        if request.user.has_cap("billing") or request.user.has_cap("finance"):
+            res["invoices"] = list(Invoice.objects.filter(Q(number__icontains=q) | Q(bill_to_name__icontains=q)).select_related("subscription")[:8])
     if request.GET.get("fmt") == "json":
         out = [{"t": c.display_name, "u": reverse("core:customer_edit", args=[c.pk]), "k": "Customers", "sub": c.email} for c in res.get("customers", [])]
         out += [{"t": s.number, "u": reverse("subscriptions:detail", args=[s.pk]), "k": "Subscriptions", "sub": f"{s.customer} · {s.get_state_display()}"} for s in res.get("subscriptions", [])]

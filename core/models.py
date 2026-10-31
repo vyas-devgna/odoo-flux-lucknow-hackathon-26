@@ -72,7 +72,7 @@ class Outbox(models.Model):
     """Transactional email outbox: rows are written inside the business transaction and delivered afterwards,
     with retries. The app stays usable when the mail server is down."""
 
-    PENDING, SENT, FAILED = "pending", "sent", "failed"
+    PENDING, SENDING, SENT, FAILED = "pending", "sending", "sent", "failed"
     to = models.CharField(max_length=254)
     subject = models.CharField(max_length=250)
     body = models.TextField()

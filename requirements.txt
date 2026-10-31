@@ -1,4 +1,4 @@
-Django>=5.2.8,<5.3
+Django==5.2.18
 whitenoise>=6.7
 gunicorn>=23
 reportlab>=4.2

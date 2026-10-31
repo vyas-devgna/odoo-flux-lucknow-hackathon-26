@@ -1,7 +1,7 @@
 import statistics
 import time
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.test import Client
 from django.urls import reverse
 
@@ -20,10 +20,15 @@ class Command(BaseCommand):
         p.add_argument("--cold", action="store_true", help="Clear the report cache before every request (worst case).")
 
     def handle(self, *a, runs=5, cold=False, **o):
-        c = Client(HTTP_HOST="localhost")
-        c.force_login(User.objects.filter(role="admin").first())
-        c.get(reverse("core:dashboard"))  # warm any caches the way a second visit would
+        if not 1 <= runs <= 100:
+            raise CommandError("Choose between 1 and 100 runs.")
+        admin = User.objects.filter(role="admin", is_active=True).first()
         sub, inv = Subscription.objects.first(), Invoice.objects.first()
+        if admin is None or sub is None or inv is None:
+            raise CommandError("Run seed_demo first; performance checks need an administrator, subscription, and invoice.")
+        c = Client(HTTP_HOST="localhost")
+        c.force_login(admin)
+        c.get(reverse("core:dashboard"))  # warm any caches the way a second visit would
         from billing.models import Payment
         cust = Customer.objects.exclude(email__startswith="bulk").first()
         pages = {
@@ -50,3 +55,5 @@ class Command(BaseCommand):
             worst = max(worst, max(times))
             self.stdout.write(f"{name:34} median {statistics.median(times)*1000:6.0f} ms   max {max(times)*1000:6.0f} ms")
         self.stdout.write((self.style.SUCCESS if worst < BUDGET else self.style.ERROR)(f"worst {worst*1000:.0f} ms (budget {BUDGET*1000:.0f} ms)"))
+        if worst >= BUDGET:
+            raise CommandError("The measured response-time budget was exceeded.")

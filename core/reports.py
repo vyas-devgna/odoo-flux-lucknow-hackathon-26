@@ -57,7 +57,11 @@ class Filters:
     """plan, customer, salesperson, product ids from the query string. `key` makes cache entries distinct."""
 
     def __init__(self, plan=None, customer=None, salesperson=None, product=None, status=None):
-        self.plan, self.customer, self.salesperson, self.product, self.status = (str(x) if x else "" for x in (plan, customer, salesperson, product, status))
+        def identifier(value):
+            value = str(value or "")
+            return value if value.isascii() and value.isdecimal() and len(value) <= 19 and 0 < int(value) <= 9223372036854775807 else ""
+        self.plan, self.customer, self.salesperson, self.product = map(identifier, (plan, customer, salesperson, product))
+        self.status = status if status in dict(Subscription.STATES) else ""
 
     @classmethod
     def from_request(cls, g):
@@ -108,6 +112,8 @@ class Filters:
             qs = qs.filter(invoice__customer_id=self.customer)
         if self.salesperson:
             qs = qs.filter(invoice__subscription__salesperson_id=self.salesperson)
+        if self.product:
+            qs = qs.filter(invoice__lines__product_id=self.product).distinct()
         return qs
 
 

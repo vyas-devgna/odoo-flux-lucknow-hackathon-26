@@ -151,7 +151,8 @@ def invoice_action(request, pk, action):
             form = RefundForm(request.POST)
             if form.is_valid():
                 d = form.cleaned_data
-                services.refund_payment(inv, amount=d["amount"], method=d["method"], date=d["date"], note=d["note"], user=request.user)
+                services.refund_payment(inv, amount=d["amount"], method=d["method"], date=d["date"], note=d["note"], user=request.user,
+                                        idempotency_key=d["idem"] or None)
                 messages.success(request, f"Refund of {d['amount']} recorded.")
             else:
                 messages.error(request, "; ".join(f"{k}: {' '.join(v)}" for k, v in form.errors.items()))

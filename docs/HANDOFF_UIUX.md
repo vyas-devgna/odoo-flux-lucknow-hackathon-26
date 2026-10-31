@@ -1,6 +1,8 @@
 # Handoff: take the UI/UX of Brightloop Studio from polished to flawless
 
-Audience: Codex (or any engineer) continuing frontend and user-experience work. Backend is complete and tested; this brief is about the interface, the documents, and the way the product feels to use. Read this whole file before touching code.
+Current local refinement work and fresh evidence are recorded in [UIUX_BACKEND_200_STEP_PLAN.md](UIUX_BACKEND_200_STEP_PLAN.md). The latest user instruction authorizes local checkpoints every 30 minutes as `vyas-devgna`, with no remote pushes; it supersedes the publishing instructions below. Earlier test and audit counts below are historical.
+
+Audience: engineers continuing frontend and user-experience work. This earlier brief records interface priorities; it does not certify backend completeness. Read it alongside the current refinement plan and its evidence ledger.
 
 ## 1. State of the project (end of this session)
 

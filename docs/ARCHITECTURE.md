@@ -4,6 +4,8 @@
 
 ## Implemented policies
 
+Immediate amendment credits are allocated in full across eligible issued recurring/adjustment documents in the covered period, preserving a uniform tax basis. They never silently cap to the original invoice. Reversing an unissued adjustment requires confirming that adjustment first, or scheduling the amendment for next period. Reductions in issued discounted periods and ambiguous mixed-tax credits currently require next-period changes; the UI explains that policy before any mutation. New prorated charges use the agreed unit prices without applying an ordinary-invoice promotion a second time. This restriction avoids incorrect credits until component-level historical discount/tax allocation is supported.
+
 | Topic | Rule | Where / proof |
 |---|---|---|
 | Money | `Decimal`, rounded half-up to 0.01 once per stored amount (`core.money.q`). Never floats. | `core/money.py`, `test_billing`, `test_payments` |

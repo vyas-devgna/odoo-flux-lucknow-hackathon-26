@@ -1,6 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.views import LoginView, PasswordResetView
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.shortcuts import redirect, render
 
 from core import audit
@@ -36,9 +38,17 @@ def signup(request):
             form.add_error(None, "Too many sign-ups from this network. Please try again later.")
         elif form.is_valid():
             RateLimitHit.hit("signup", ip)
-            user = form.save()
+            try:
+                user = form.save()
+            except IntegrityError:
+                form.add_error("email", "An account with this email already exists. Sign in or reset your password.")
+                return render(request, "accounts/signup.html", {"form": form, "next": nxt})
             audit.log(user, "account.signup", user)
             login(request, user, backend="accounts.backends.EmailBackend")
+            if not hasattr(user, "customer"):
+                from .services import send_customer_verification
+                send_customer_verification(user)
+                return redirect("accounts:verify_pending")
             messages.success(request, "Welcome. Your account is ready.")
             if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
                 return redirect(nxt)
@@ -81,6 +91,34 @@ def team_form(request, pk=None):
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
+
+
+@login_required
+def verify_pending(request):
+    from core.models import RateLimitHit
+    from .services import send_customer_verification
+    if request.user.role != User.CUSTOMER or hasattr(request.user, "customer"):
+        return redirect("core:home")
+    if request.method == "POST":
+        if RateLimitHit.count("customer-verify", request.user.email, 60) >= 3:
+            messages.error(request, "Too many requests. Please wait an hour before requesting another link.")
+        else:
+            RateLimitHit.hit("customer-verify", request.user.email)
+            send_customer_verification(request.user)
+            messages.success(request, "A new verification message has been queued for your email address.")
+        return redirect("accounts:verify_pending")
+    return render(request, "accounts/verify_customer.html", {"title": "Verify your email"})
+
+
+def verify_customer(request, token):
+    from .services import verify_customer as verify
+    try:
+        user = verify(token)
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+        return redirect("accounts:verify_pending" if request.user.is_authenticated else "accounts:login")
+    messages.success(request, "Email verified. Your billing profile is ready.")
+    return redirect("core:home" if request.user.is_authenticated and request.user.pk == user.pk else "accounts:login")
 
 
 @login_required

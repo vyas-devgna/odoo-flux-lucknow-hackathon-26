@@ -20,8 +20,13 @@ from .models import BillingFailure, BillingPeriod, BillingRun, Invoice
 
 def _lock_sub(sid):
     qs = Subscription.objects.select_related("plan", "customer")
-    if connection.features.has_select_for_update_skip_locked:
-        qs = qs.select_for_update(skip_locked=True, of=("self",))  # another runner owns it: skip, don't wait
+    if connection.features.has_select_for_update:
+        options = {}
+        if connection.features.has_select_for_update_skip_locked:
+            options["skip_locked"] = True  # another runner owns it: skip, don't wait
+        if connection.features.has_select_for_update_of:
+            options["of"] = ("self",)
+        qs = qs.select_for_update(**options)
     return qs.filter(pk=sid).first()
 
 
@@ -84,8 +89,7 @@ def maintenance(as_of):
     """After billing: scheduled cancellations, term ends (auto-renew or close), expired quotations, payment-exception flags."""
     closed = renewed = 0
     for sub in Subscription.objects.filter(state__in=[Subscription.ACTIVE, Subscription.PAUSED], pending_cancel_at__lt=as_of).select_related("plan", "customer"):
-        subs._finish_close(sub, effective=sub.pending_cancel_at + timedelta(days=1))
-        closed += 1
+        closed += bool(subs._finish_close(sub, effective=sub.pending_cancel_at + timedelta(days=1)))
     ended = Subscription.objects.filter(state=Subscription.ACTIVE, expiry_date__lt=as_of).select_related("plan", "customer")
     for sub in ended:
         if sub.next_invoice_date and sub.next_invoice_date <= sub.expiry_date:
@@ -97,12 +101,10 @@ def maintenance(as_of):
             renewed += 1
         if has_renewal:
             sub.close_reason = "expired"
-            subs._finish_close(sub, effective=sub.expiry_date + timedelta(days=1), movement="renewal")
-            closed += 1
+            closed += bool(subs._finish_close(sub, effective=sub.expiry_date + timedelta(days=1), movement="renewal"))
         elif sub.plan.auto_close:
             sub.close_reason = "expired"
-            subs._finish_close(sub, effective=sub.expiry_date + timedelta(days=1))
-            closed += 1
+            closed += bool(subs._finish_close(sub, effective=sub.expiry_date + timedelta(days=1)))
     # activate renewal terms whose start date has arrived is handled by billing itself (next_invoice_date = start_date)
     for q_ in Subscription.objects.filter(state__in=[Subscription.DRAFT, Subscription.QUOTATION], quote_valid_until__lt=as_of):
         q_.state = Subscription.CANCELLED

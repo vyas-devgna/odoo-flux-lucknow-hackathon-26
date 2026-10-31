@@ -4,6 +4,7 @@ from decimal import Decimal
 from accounts.models import Customer
 from billing import services as billing
 from billing.models import Invoice, Payment
+from catalog.models import Product
 from core import reports
 from subscriptions import services as subs
 from subscriptions.models import Subscription, add_interval
@@ -66,6 +67,25 @@ class Definitions(Base):
 
 
 class Movements(Base):
+    def test_malformed_filter_ids_do_not_reach_database_integer_fields(self):
+        for value in ("invalid", "-1", "9" * 100, "123.4", "１２３"):
+            with self.subTest(value=value):
+                filters = reports.Filters(plan=value, customer=value, product=value, salesperson=value, status="invalid")
+                self.assertFalse(filters.any)
+                self.assertEqual(filters.subs().count(), 0)
+
+    def test_product_filter_also_scopes_cash_payments(self):
+        product = Product.objects.create(name="Extra", sales_price=100, type="addon")
+        self.plan.products.add(product)
+        sub = make_active(self.plan, self.cust)
+        subs.set_addon(sub, product.pk, True)
+        billing.run_billing(self.today)
+        invoice = Invoice.objects.get(subscription=sub)
+        billing.confirm_invoice(invoice)
+        billing.record_payment(invoice, amount=100, method="bank", date=self.today)
+        self.assertEqual(reports.Filters(product=product.pk).payments(Payment.objects.all()).count(), 1)
+        self.assertEqual(reports.Filters(product=product.pk + 1).payments(Payment.objects.all()).count(), 0)
+
     def test_bridge_counts_churn_against_opening_base_only(self):
         old = make_active(self.plan, self.cust, self.today - timedelta(days=200), qty=2)
         c2 = Customer.objects.create(name="Late", email="late@x.test")

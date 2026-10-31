@@ -1,0 +1,6 @@
+{% extends 'accounts/auth_base.html' %}{% block title %}Verify your email{% endblock %}{% block body %}
+<div><h1>Verify your email</h1><p class="mute" style="margin:8px 0 0">An existing billing profile needs email verification before you can finish creating your account. We sent a verification link to:</p></div>
+<p class="callout" style="overflow-wrap:anywhere;margin:0"><b>{{ user.email }}</b></p>
+<form method="post" class="form" style="grid-template-columns:1fr">{% csrf_token %}<button class="btn primary" type="submit" name="resend" value="1">Resend verification email</button></form>
+<form method="post" action="{% url 'accounts:logout' %}" class="form" style="grid-template-columns:1fr">{% csrf_token %}<button class="btn" type="submit">Use another account</button></form>
+{% endblock %}

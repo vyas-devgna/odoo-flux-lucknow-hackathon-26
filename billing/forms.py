@@ -40,3 +40,9 @@ class RefundForm(StyledFormMixin, forms.Form):
     method = forms.ChoiceField(choices=STAFF_METHODS)
     date = forms.DateField(widget=forms.DateInput())
     note = forms.CharField(max_length=200, required=False, label="Reason")
+    idem = forms.CharField(widget=forms.HiddenInput, required=False)
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        if not self.is_bound:
+            self.fields["idem"].initial = uuid.uuid4().hex

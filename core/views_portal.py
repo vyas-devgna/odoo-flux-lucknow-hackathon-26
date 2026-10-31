@@ -80,7 +80,8 @@ def action(request, pk, action):
             name = request.POST.get("signed_name", "").strip()
             if not name or not request.POST.get("agree"):
                 raise services.TransitionError("Type your full name and tick the box to accept.")
-            services.accept(sub, actor=actor, signed_name=name, ip=_client_ip(request), how="Accepted online")
+            services.accept(sub, actor=actor, signed_name=name, ip=_client_ip(request), how="Accepted online",
+                            expected_revision=request.POST.get("revision", ""))
             audit.log(actor, "portal.accept", sub, name)
             messages.success(request, "Thank you. Your quotation is accepted.")
         elif action in ("pause", "resume"):

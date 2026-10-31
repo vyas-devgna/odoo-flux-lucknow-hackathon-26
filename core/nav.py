@@ -11,6 +11,15 @@ TOP = [  # key, label, url name, required caps (any); admins pass everything
     ("reports", "Reports", "core:reports", ("finance",)),
 ]
 
+COMMANDS = [
+    ("New subscription", "subscriptions:new", "Create", ("sales",), ""),
+    ("New customer", "core:customer_new", "Create", ("sales",), ""),
+    ("Run billing", "billing:runs", "Action", ("billing",), ""),
+    ("Overdue invoices", "billing:list", "View", ("billing", "finance"), "?status=overdue"),
+    ("Draft invoices", "billing:list", "View", ("billing", "finance"), "?status=draft"),
+    ("Payments awaiting confirmation", "billing:payments", "View", ("billing", "finance"), "?status=pending"),
+]
+
 SUB = {
     "sales": [("Quotations", "subscriptions:quotes"), ("Pipeline", "subscriptions:pipeline"), ("Templates", "catalog:templates_list"), ("Storefront", "store:home")],
     "subscriptions": [("All subscriptions", "subscriptions:list"), ("Renewals", "subscriptions:renewals"), ("Changes", "subscriptions:changes")],
@@ -69,4 +78,6 @@ def shell(request):
         subnav.append({"label": label, "url": href, "on": on})
     if section in ("sales",) and match and match.url_name in ("detail",):
         subnav = []
-    return {"NAV_TOP": top, "SUBNAV": subnav, "SECTION": section}
+    commands = [{"t": label, "u": reverse(url) + query, "k": kind} for label, url, kind, caps, query in COMMANDS
+                if any(user.has_cap(cap) for cap in caps)]
+    return {"NAV_TOP": top, "SUBNAV": subnav, "SECTION": section, "COMMANDS": commands}

@@ -1,6 +1,7 @@
 import json
 
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -137,8 +138,11 @@ def subscription_detail(request, pk):
 
 
 @sales_required
+@transaction.atomic
 def subscription_edit(request, pk):
     sub = _get(pk)
+    if request.method == "POST":
+        sub = services.fresh(sub, lock=True)
     if not sub.can_edit:
         messages.error(request, "A closed subscription can't be edited. Renew it instead.")
         return redirect("subscriptions:detail", pk=pk)
@@ -146,6 +150,9 @@ def subscription_edit(request, pk):
     fs = LineFormSet(request.POST or None, instance=sub)
     if request.method == "POST" and form.is_valid() and fs.is_valid():
         before = services.mrr_of(sub)
+        if sub.state == Subscription.QUOTATION:
+            sub.state = Subscription.DRAFT
+            sub.revision += 1
         form.save()
         for inst in fs.save(commit=False):
             if inst.product_id and not inst.pk:

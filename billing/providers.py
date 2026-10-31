@@ -8,7 +8,7 @@ import logging
 import os
 import urllib.error
 import urllib.request
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
@@ -51,10 +51,12 @@ def _call(method, path, payload=None):
         raise BillingError("Payment provider is unreachable. Nothing was charged; please try again shortly.") from e
 
 
+@transaction.atomic
 def create_payment_link(inv):
     """Hosted checkout for the invoice balance. Reuses a live link for the same amount instead of creating duplicates."""
     if not configured():
         raise BillingError("Online payment isn't configured.")
+    inv = Invoice.objects.select_for_update().get(pk=inv.pk)
     if inv.state != Invoice.CONFIRMED or inv.balance <= 0:
         raise BillingError("This invoice has nothing left to pay.")
     if inv.payments.filter(status=Payment.PENDING).exists():
@@ -81,40 +83,62 @@ def verify_signature(body: bytes, signature: str) -> bool:
 def handle_event(event_id: str, payload: dict) -> str:
     """Process one verified event exactly once. Returns a short outcome string."""
     kind = payload.get("event", "")
-    try:
-        with transaction.atomic():
-            ev = PaymentEvent.objects.create(provider="razorpay", event_id=event_id, kind=kind)
-    except IntegrityError:
-        return "duplicate"
-    outcome = "ignored"
-    ent = payload.get("payload", {})
-    if kind in ("payment_link.paid", "payment.captured", "order.paid"):
-        link_e, pay_e = ent.get("payment_link", {}).get("entity", {}), ent.get("payment", {}).get("entity", {})
-        link = PaymentLink.objects.filter(provider="razorpay", provider_id=link_e.get("id", "")).select_related("invoice").first()
-        if link and pay_e.get("id"):
-            amount = Decimal(pay_e.get("amount", 0)) / 100
-            inv = link.invoice
-            try:
-                payments.record_payment(inv, amount=min(amount, inv.balance) if inv.balance else amount, method="razorpay", reference=pay_e["id"],
-                                        provider="razorpay", provider_ref=pay_e["id"], is_test=is_test_mode(), note="Online payment")
-                link.status = "paid"
-                link.save(update_fields=["status"])
-                outcome = "recorded"
-            except BillingError as e:
-                outcome = f"not applied: {e}"
-        else:
-            outcome = "unknown link"
-    elif kind == "payment.failed":
-        pe = ent.get("payment", {}).get("entity", {})
-        ref = (pe.get("notes") or {}).get("invoice") or ""
-        link = PaymentLink.objects.filter(provider="razorpay", provider_id=pe.get("payment_link_id", "")).select_related("invoice").first()
-        if link:
-            payments.fail_payment(link.invoice, amount=Decimal(pe.get("amount", 0)) / 100, method="razorpay", reason=pe.get("error_description") or "Payment failed",
-                                  provider="razorpay", provider_ref=pe.get("id", ""), is_test=is_test_mode())
-            outcome = "failure recorded"
-    ev.outcome = outcome[:200]
-    ev.save(update_fields=["outcome"])
-    return outcome
+    with transaction.atomic():
+        try:
+            with transaction.atomic():
+                ev = PaymentEvent.objects.create(provider="razorpay", event_id=event_id, kind=kind)
+        except IntegrityError:
+            if PaymentEvent.objects.filter(provider="razorpay", event_id=event_id).exists():
+                return "duplicate"
+            raise
+        outcome = "ignored"
+        ent = payload.get("payload", {})
+        if kind in ("payment_link.paid", "payment.captured", "order.paid"):
+            link_e, pay_e = ent.get("payment_link", {}).get("entity", {}), ent.get("payment", {}).get("entity", {})
+            link_id = link_e.get("id") or pay_e.get("payment_link_id", "")
+            link = PaymentLink.objects.filter(provider="razorpay", provider_id=link_id).select_related("invoice").first()
+            if link and pay_e.get("id"):
+                try:
+                    minor_amount = Decimal(pay_e["amount"])
+                    if minor_amount != minor_amount.to_integral_value() or minor_amount <= 0:
+                        raise InvalidOperation
+                    amount = minor_amount / 100
+                except (KeyError, InvalidOperation, TypeError, ValueError):
+                    outcome = "not applied: invalid provider amount"
+                else:
+                    currency_value = pay_e.get("currency")
+                    if currency_value is None and is_test_mode():  # Older sandbox fixtures omit this provider field.
+                        currency_value = "INR"
+                    currency = str(currency_value or "").upper()
+                    if currency != "INR":
+                        outcome = f"not applied: unsupported provider currency {currency[:12]}"
+                    elif amount != link.amount:
+                        outcome = "not applied: captured amount does not match payment link"
+                    else:
+                        try:
+                            payments.record_payment(link.invoice, amount=amount, method="razorpay", reference=pay_e["id"], provider="razorpay",
+                                                    provider_ref=pay_e["id"], is_test=is_test_mode(), note="Online payment")
+                            link.status = "paid"
+                            link.save(update_fields=["status"])
+                            outcome = "recorded"
+                        except BillingError as e:
+                            outcome = f"not applied: {e}"
+            else:
+                outcome = "unknown link"
+        elif kind == "payment.failed":
+            pe = ent.get("payment", {}).get("entity", {})
+            link = PaymentLink.objects.filter(provider="razorpay", provider_id=pe.get("payment_link_id", "")).select_related("invoice").first()
+            if link:
+                try:
+                    failed = payments.fail_payment(link.invoice, amount=Decimal(pe.get("amount", 0)) / 100, method="razorpay",
+                                                   reason=pe.get("error_description") or "Payment failed", provider="razorpay",
+                                                   provider_ref=pe.get("id", ""), is_test=is_test_mode())
+                    outcome = "failure recorded" if failed else "duplicate failure ignored"
+                except BillingError as e:
+                    outcome = f"not applied: {e}"
+        ev.outcome = outcome[:200]
+        ev.save(update_fields=["outcome"])
+        return outcome
 
 
 def reconcile_link(link):
@@ -125,8 +149,23 @@ def reconcile_link(link):
     status = data.get("status", "")
     paid = [p for p in data.get("payments", []) or [] if p.get("status") == "captured"]
     if status == "paid" and paid:
-        pid = paid[0]["payment_id"]
-        payments.record_payment(link.invoice, amount=min(link.amount, link.invoice.balance) if link.invoice.balance else link.amount, method="razorpay", reference=pid,
+        receipt = paid[0]
+        pid = receipt.get("payment_id")
+        if not pid:
+            raise BillingError("Provider reports a capture without a payment reference.")
+        currency_value = receipt.get("currency")
+        if currency_value is None and is_test_mode():  # Older sandbox fixtures omit this provider field.
+            currency_value = "INR"
+        currency = str(currency_value or "").upper()
+        if currency != "INR":
+            raise BillingError(f"Provider reports unsupported currency {currency[:12]}.")
+        try:
+            amount = Decimal(receipt["amount"]) / 100 if "amount" in receipt else link.amount
+        except (InvalidOperation, TypeError, ValueError):
+            raise BillingError("Provider reports an invalid captured amount.") from None
+        if amount != link.amount:
+            raise BillingError("Provider captured amount does not match the payment link.")
+        payments.record_payment(link.invoice, amount=amount, method="razorpay", reference=pid,
                                 provider="razorpay", provider_ref=pid, is_test=is_test_mode(), note="Online payment (reconciled)")
         link.status = "paid"
         link.save(update_fields=["status"])

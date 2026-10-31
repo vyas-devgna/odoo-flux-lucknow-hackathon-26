@@ -26,6 +26,10 @@ Individual commands: `run_billing` (billing only), `send_outbox` (deliver pendin
 ## Email
 Set `EMAIL_HOST` (+ port/credentials). Every message is written to the outbox first; failures retry with exponential backoff up to 6 attempts and stay visible at **Settings → Email outbox** with a Retry button. Without `EMAIL_HOST` the console backend prints mail and nothing is delivered. Set `EMAIL_FQDN` to your sending domain (avoids a slow reverse-DNS lookup when stamping Message-IDs).
 
+Delivery atomically claims a row as **Sending** before contacting SMTP. Concurrent workers cannot send the same pending row. A process interrupted during SMTP leaves the message in Sending because delivery may already have happened. After ten minutes, an administrator may use **Requeue after review**, only after checking the recipient or SMTP delivery log. SMTP cannot provide exactly-once delivery across an ambiguous network failure.
+
+Signup never claims a staff-prepared customer profile just by matching its email. The customer follows an expiring emailed verification link to attach that profile. Resends are limited; console email in development is not real delivery.
+
 ## Online payments (optional)
 `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`. Add `https://<host>/billing/webhooks/razorpay/` in the provider dashboard for `payment_link.paid` and `payment.failed`. Use test keys first: those payments are flagged *test* and excluded from cash-received reports. If a payment's outcome is uncertain, open the invoice and use **Check status** on its payment link; nothing is recorded until the provider confirms capture.
 

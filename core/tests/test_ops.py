@@ -19,6 +19,26 @@ from .helpers import Base, make_active, make_world
 
 
 class OutboxTests(Base):
+    def test_delivery_is_claimed_before_smtp_so_another_worker_cannot_send_it(self):
+        row = outbox.queue_email("a@x.test", "S", "B", deliver=False)
+        competing = []
+        def smtp_send(*args, **kwargs):
+            competing.append(outbox.deliver_one(row.pk))
+            return 1
+        with mock.patch("core.mail.EmailMessage.send", side_effect=smtp_send) as send:
+            self.assertTrue(outbox.deliver_one(row.pk))
+        self.assertEqual(competing, [False])
+        self.assertEqual(send.call_count, 1)
+
+    def test_interrupted_delivery_requires_explicit_review_after_the_delivery_window(self):
+        row = outbox.queue_email("a@x.test", "S", "B", deliver=False)
+        Outbox.objects.filter(pk=row.pk).update(status="sending", next_attempt_at=timezone.now() + timedelta(minutes=10))
+        self.assertEqual(outbox.flush(), (0, 0))
+        self.assertFalse(outbox.retry(row.pk, reviewed=True))
+        Outbox.objects.filter(pk=row.pk).update(next_attempt_at=timezone.now() - timedelta(minutes=1))
+        self.assertFalse(outbox.retry(row.pk))
+        self.assertTrue(outbox.retry(row.pk, reviewed=True))
+
     def test_dedupe_key_prevents_duplicate_queueing(self):
         a = outbox.queue_email("a@x.test", "S", "B", dedupe_key="k")
         b = outbox.queue_email("a@x.test", "S", "B", dedupe_key="k")
@@ -125,6 +145,16 @@ class AutomationTests(Base):
 
 
 class Commands(Base):
+    def test_performance_check_explains_missing_seed_data(self):
+        from django.core.management.base import CommandError
+        with self.assertRaisesMessage(CommandError, "Run seed_demo first"):
+            call_command("perf_check", stdout=mock.Mock())
+
+    def test_performance_check_rejects_empty_measurements(self):
+        from django.core.management.base import CommandError
+        with self.assertRaisesMessage(CommandError, "between 1 and 100"):
+            call_command("perf_check", runs=0, stdout=mock.Mock())
+
     def test_run_scheduled_does_billing_automation_and_outbox_in_order(self):
         make_active(self.plan, self.cust, self.today - timedelta(days=5))
         call_command("run_scheduled", stdout=mock.Mock())

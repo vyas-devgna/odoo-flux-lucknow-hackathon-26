@@ -58,15 +58,21 @@ Or keep one process alive: `manage.py run_scheduled --every 300`. See [docs/OPER
 ## Verify it
 
 ```sh
-.venv/bin/python manage.py test                           # 125 backend, security, billing, payments and report tests
+.venv/bin/python manage.py test                           # backend, security, billing, payments and report regressions
 DATABASE_URL=postgres://... .venv/bin/python manage.py test   # same suite on PostgreSQL (includes parallel-billing test)
 python e2e/journey.py                                     # real-browser 26-step acceptance journey + restart persistence + mobile/tablet overflow
+.venv/bin/python manage.py makemigrations --check --dry-run
 .venv/bin/python manage.py perf_check --cold              # page latency at the current dataset size
 ```
 
 `e2e/journey.py` needs `playwright` (`uv pip install playwright`) and a Chromium (`CHROMIUM=/path`). It writes screenshots to `e2e/out/`.
 
+Additional checks: `python e2e/interaction_regressions.py`, `python e2e/visual_refinement.py http://127.0.0.1:8765 final`, `python e2e/browser_performance.py`, and `python e2e/a11y_check.py --axe-script /path/to/axe.min.js` (supply a local axe-core distribution). These use the seeded demo server. Browser and accessibility findings are scoped to the pages and viewports each script visits.
+
+If signup matches a billing profile prepared by staff, access is granted only after following a verification link sent to that email. The link expires after one hour; the verification page supports rate-limited resend. Configure SMTP for real delivery; local console/test messages are not delivered to an inbox.
+
 ## Documentation
 
 - [Requirements and acceptance checks](docs/REQUIREMENTS.md) · [Architecture and policies](docs/ARCHITECTURE.md) · [Metric definitions](docs/METRICS.md)
 - [UI/UX handoff](docs/HANDOFF_UIUX.md) · [Operations runbook](docs/OPERATIONS.md) · [Performance log](docs/PERFORMANCE.md) · [Implementation plan and known limits](docs/IMPLEMENTATION_PLAN.md)
+- [Current 100-step frontend and 100-step backend refinement plan](docs/UIUX_BACKEND_200_STEP_PLAN.md)

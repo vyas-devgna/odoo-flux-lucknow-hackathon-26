@@ -15,3 +15,4 @@ staticfiles/
 backups/
 .scheduled.lock
 test_db.sqlite3
+e2e/out/visual_refinement/

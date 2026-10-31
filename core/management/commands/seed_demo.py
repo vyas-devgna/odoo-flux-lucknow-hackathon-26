@@ -57,7 +57,8 @@ class Command(BaseCommand):
     def wipe(self):
         from billing.models import BillingFailure, BillingRun, DiscountUse, PaymentEvent, PaymentLink
         from core.models import AuditLog, AutomationLog, Outbox
-        for m in (PaymentLink, PaymentEvent, Payment, DiscountUse, InvoiceLine, BillingPeriod, BillingFailure, Invoice, BillingRun, SubscriptionChange, SubscriptionLine, Subscription,
+        from store.models import CheckoutReceipt
+        for m in (CheckoutReceipt, PaymentLink, PaymentEvent, Payment, DiscountUse, InvoiceLine, BillingPeriod, BillingFailure, Invoice, BillingRun, SubscriptionChange, SubscriptionLine, Subscription,
                   TemplateLine, QuotationTemplate, Discount, PlanTier, ProductVariant, Product, Plan, Category, Customer, AuditLog, AutomationLog, Outbox, Notification, Task):
             m.objects.all().delete()
         User.objects.all().delete()

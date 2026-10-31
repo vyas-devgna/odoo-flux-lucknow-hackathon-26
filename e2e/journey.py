@@ -186,11 +186,14 @@ def main():
             step(9, f"Staff creates and sends quotation {num} from a template", "Quotation" in staff.locator("h1").first.inner_text() and "valid" in staff.content().lower(), staff.inner_text("main")[:200] + " | toasts: " + staff.inner_text("#toasts"))
             shot(staff, "09-quotation-sent")
 
-            # 10 customer registers (adopting the prepared record), reviews and accepts
+            # 10 customer proves email ownership before accessing the prepared billing identity.
             cc, cust = ctx(390, 844)
             cust.goto(base + "/accounts/signup/")
             cust.fill("#id_name", "Priya Customer"); cust.fill("#id_email", "priya@e2e.test"); cust.fill("#id_password", PW); cust.fill("#id_confirm", PW)
             cw(cust, "button.primary")
+            verification = srv.manage("shell", "-c", "import re; from core.models import Outbox; m=Outbox.objects.filter(to='priya@e2e.test',subject='Verify your Brightloop email').latest('pk'); print(re.search(r'/accounts/verify/[^\\s]+',m.body).group(0))")
+            verification_path = next(line for line in verification.stdout.splitlines() if line.startswith("/accounts/verify/"))
+            cust.goto(base + verification_path)
             cust.goto(f"{base}/portal/subscriptions/{sub_id}/")
             shot(cust, "10-customer-quotation-mobile")
             cust.fill("#signed", "Priya Customer"); cust.check("#agree"); cw(cust, "button:has-text('Accept quotation')")

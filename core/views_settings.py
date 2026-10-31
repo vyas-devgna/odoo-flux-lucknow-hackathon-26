@@ -98,12 +98,15 @@ def outbox(request):
         elif request.POST.get("retry"):
             ok = mail.retry(int(request.POST["retry"]))
             messages.success(request, "Delivered." if ok else "Still failing; the error is shown on the row.")
+        elif request.POST.get("reviewed_retry"):
+            ok = mail.retry(request.POST["reviewed_retry"], reviewed=True)
+            messages.info(request, "Message requeued after delivery review." if ok else "Not requeued. Delivery is still in progress or the ten-minute review window has not elapsed.")
         return redirect("core:outbox")
     status = request.GET.get("status", "")
     qs = Outbox.objects.all()
     if status:
         qs = qs.filter(status=status)
-    counts = {k: Outbox.objects.filter(status=k).count() for k in ("pending", "sent", "failed")}
+    counts = {k: Outbox.objects.filter(status=k).count() for k in ("pending", "sending", "sent", "failed")}
     return render(request, "core/outbox.html", {"page": paginate(request, qs), "counts": counts, "status": status, "title": "Email outbox"})
 
 

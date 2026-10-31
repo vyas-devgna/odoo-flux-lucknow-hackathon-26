@@ -14,7 +14,7 @@ from core.money import ZERO, q
 from subscriptions.models import add_interval
 
 from . import pricing
-from .models import BillingPeriod, DiscountUse, Invoice, InvoiceLine
+from .models import BillingPeriod, DiscountUse, Invoice, InvoiceLine, Payment
 
 
 class BillingError(Exception):
@@ -89,18 +89,21 @@ def create_adjustment_invoice(sub, diffs, period, *, today=None, actor=None):
 
 
 # -------------------------------------------------------------- state changes
+@transaction.atomic
 def confirm_invoice(inv):
-    if inv.state != Invoice.DRAFT:
+    current = Invoice.objects.select_for_update().get(pk=inv.pk)
+    if current.state != Invoice.DRAFT:
         raise BillingError("Only draft invoices can be confirmed.")
-    inv.state = Invoice.CONFIRMED
-    inv.finalized_at = timezone.now()
-    inv.save(update_fields=["state", "finalized_at"])
+    current.state = Invoice.CONFIRMED
+    current.finalized_at = timezone.now()
+    current.save(update_fields=["state", "finalized_at"])
+    inv.state, inv.finalized_at = current.state, current.finalized_at
 
 
 @transaction.atomic
 def cancel_invoice(inv):
-    inv = Invoice.objects.get(pk=inv.pk)
-    if inv.state not in (Invoice.DRAFT, Invoice.CONFIRMED) or inv.payments.filter(status="succeeded").exists() or inv.credited_total:
+    inv = Invoice.objects.select_for_update().get(pk=inv.pk)
+    if inv.state not in (Invoice.DRAFT, Invoice.CONFIRMED) or inv.payments.filter(status__in=(Payment.SUCCEEDED, Payment.PENDING)).exists() or inv.credited_total:
         raise BillingError("Only unpaid, uncredited draft or confirmed invoices can be cancelled.")
     inv.state = Invoice.CANCELLED
     inv.save(update_fields=["state"])
@@ -113,7 +116,7 @@ def cancel_invoice(inv):
 
 @transaction.atomic
 def replace_invoice(inv):
-    inv = Invoice.objects.get(pk=inv.pk)
+    inv = Invoice.objects.select_for_update().get(pk=inv.pk)
     if inv.state != Invoice.CANCELLED or hasattr(inv, "replacement") or inv.kind != Invoice.RECURRING:
         raise BillingError("Only a cancelled recurring invoice without a replacement can be replaced.")
     sub = inv.subscription
@@ -125,7 +128,7 @@ def replace_invoice(inv):
 @transaction.atomic
 def issue_credit_note(inv, *, amount, reason="", actor=None, cap=False):
     """Linked correction document. The original stays untouched; its credited total grows and its balance shrinks."""
-    inv = Invoice.objects.get(pk=inv.pk)
+    inv = Invoice.objects.select_for_update().get(pk=inv.pk)
     if inv.kind == Invoice.CREDIT_NOTE or inv.state not in (Invoice.CONFIRMED, Invoice.PAID):
         raise BillingError("Credit notes can be issued only against confirmed or paid invoices.")
     amount = q(amount)
@@ -142,11 +145,13 @@ def issue_credit_note(inv, *, amount, reason="", actor=None, cap=False):
     today = timezone.localdate()
     cn = Invoice.objects.create(
         subscription=inv.subscription, kind=Invoice.CREDIT_NOTE, state=Invoice.PAID, credit_for=inv, period_start=inv.period_start,
-        period_end=inv.period_end, issue_date=today, due_date=today, subtotal=-net, tax_total=-tax, total=-amount, finalized_at=timezone.now(),
+        period_end=inv.period_end, issue_date=today, due_date=today, subtotal=-net, tax_total=-tax, total=-amount,
         bill_to_name=inv.bill_to_name, bill_to_email=inv.bill_to_email, bill_to_address=inv.bill_to_address, bill_to_tax_id=inv.bill_to_tax_id,
         customer=inv.customer)
     InvoiceLine.objects.create(invoice=cn, description=f"Credit against {inv.number}" + (f": {reason}" if reason else ""), quantity=1,
                                unit_price=-net, tax_name="", tax_rate=rate, tax_amount=-tax, amount=-net)
+    cn.finalized_at = timezone.now()
+    cn.save(update_fields=["finalized_at"])
     inv.credited_total += amount
     if inv.state == Invoice.CONFIRMED and inv.balance <= 0:
         inv.state = Invoice.PAID
