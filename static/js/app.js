@@ -131,7 +131,7 @@ document.addEventListener('keydown', e => {
 });
 
 /* ---------- init (runs on load and after every boosted navigation) */
-function init() { flash(); counters(); initCharts(); document.body.classList.remove('open'); $$('input[autofocus]').forEach(i => i.focus()); }
+function init() { $$('.formset-row [id]:not([aria-label]):not([type=hidden])').forEach(i => { const l = i.closest('td')?.dataset.l; if (l) i.setAttribute('aria-label', l); }); $$('input[id$=-DELETE]:not([aria-label])').forEach(i => i.setAttribute('aria-label', 'Remove row')); flash(); counters(); initCharts(); document.body.classList.remove('open'); $$('input[autofocus]').forEach(i => i.focus()); }
 document.addEventListener('DOMContentLoaded', init);
 document.addEventListener('htmx:afterSettle', init);
 document.addEventListener('htmx:responseError', () => toast('Something went wrong. Please try again.', 'error'));

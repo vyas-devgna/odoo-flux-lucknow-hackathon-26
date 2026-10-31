@@ -2,7 +2,7 @@
 {% block content %}{% include 'core/reports/_filters.html' %}
 <div class="card" style="margin-bottom:16px"><div class="kpis" style="margin:0;border:0;padding:0"><div class="kpi"><small>Invoiced</small><b class="num">{{ s.invoiced|money }}</b><em>{{ s.invoice_count }} invoices{% if s.credited %} · {{ s.credited|short_money }} credited{% endif %}</em></div>
 <div class="kpi"><small>Cash received</small><b class="num">{{ s.cash|money }}</b><em>{{ s.payments }} payments{% if s.refunds %} · {{ s.refunds|short_money }} refunded{% endif %}</em></div>
-<div class="kpi"><small>Outstanding</small><b class="num">{{ s.outstanding|money }}</b><em>{{ s.outstanding_count }} invoices</em></div><div class="kpi"><small>Overdue</small><b class="num" style="color:var(--red)">{{ s.overdue|money }}</b><em>{{ s.overdue_count }} invoices</em></div></div>
+<div class="kpi"><small>Outstanding</small><b class="num">{{ s.outstanding|money }}</b><em>{{ s.outstanding_count }} invoices</em></div><div class="kpi"><small>Overdue</small><b class="num" style="color:var(--bad)">{{ s.overdue|money }}</b><em>{{ s.overdue_count }} invoices</em></div></div>
 {% if s.test_count %}<p class="small mute" style="margin:14px 0 0">{{ s.test_count }} test-mode payment{{ s.test_count|pluralize }} ({{ s.test_cash|money }}) are excluded from cash received.</p>{% endif %}</div>
 <div class="dash"><div class="stack"><div class="card"><header><h2>Invoiced vs collected</h2><div class="legend"><span><i style="background:var(--orange)"></i>Invoiced</span><span><i style="background:var(--accent)"></i>Collected</span></div></header><div class="chart-box"><canvas data-chart="ch-cash" role="img" aria-label="Invoiced versus collected by month"></canvas></div></div>
 {{ cash_cfg|json_script:"ch-cash" }}

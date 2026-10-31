@@ -164,7 +164,7 @@ def notifications(user):
 
 @register.filter
 def avatar_color(name):
-    palette = ["#7c5cff", "#2f6bff", "#12b76a", "#ff8a1f", "#e5484d", "#0ea5a5", "#c026d3", "#475569"]
+    palette = ["#6d4cf0", "#2559e0", "#0b7a45", "#b4500a", "#c8341a", "#0a7580", "#a21caf", "#475569"]
     return palette[sum(map(ord, str(name))) % len(palette)]
 
 
