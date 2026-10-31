@@ -127,6 +127,7 @@ _ICONS = {
     "calendar": '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
     "chevron": '<path d="M6 9l6 6 6-6"/>',
     "right": '<path d="M9 6l6 6-6 6"/>',
+    "close": '<path d="M6 6l12 12M18 6L6 18"/>',
     "download": '<path d="M12 3v12M7 11l5 5 5-5M4 21h16"/>',
 }
 
@@ -213,3 +214,12 @@ def pct(value, total):
         return f"{(Decimal(value) / Decimal(total) * 100):.1f}"
     except Exception:
         return "0.0"
+
+
+@register.filter
+def in_words(value):
+    from core.numwords import rupees_in_words
+    try:
+        return rupees_in_words(value)
+    except Exception:
+        return ""

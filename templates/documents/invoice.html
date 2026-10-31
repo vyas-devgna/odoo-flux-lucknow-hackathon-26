@@ -1,0 +1,36 @@
+{% extends 'documents/base.html' %}{% load ui %}
+{% block doctitle %}{{ inv.number }}{% endblock %}{% block doclabel %}{{ inv.number }}{% endblock %}
+{% block toolbar_extra %}{% if pdf_url %}<a href="{{ pdf_url }}">Download PDF</a>{% endif %}{% endblock %}
+{% block stamp %}{% if inv.state == 'paid' and not inv.is_credit_note %}<div class="stamp paid">PAID</div>{% elif inv.state == 'draft' %}<div class="stamp">DRAFT</div>{% elif inv.state == 'cancelled' %}<div class="stamp cancelled">CANCELLED</div>{% endif %}{% endblock %}
+{% block title_text %}{% if inv.is_credit_note %}Credit note{% else %}Tax invoice{% endif %}{% endblock %}
+{% block number %}{{ inv.number }}{% endblock %}
+{% block status %}<span class="status">{% if inv.is_credit_note %}Credit{% else %}{{ inv.display_state|title }}{% endif %}</span>{% endblock %}
+{% block content %}
+<section class="parties">
+  <div class="box"><h3>Bill to</h3><div class="name">{{ inv.bill_to_name }}</div><p>{{ inv.bill_to_address }}</p><p>{{ inv.bill_to_email }}</p>{% if inv.bill_to_tax_id %}<p>Tax ID: <b>{{ inv.bill_to_tax_id }}</b></p>{% endif %}</div>
+  <div class="box"><h3>Document details</h3><table class="kv">
+    <tr><td>{% if inv.is_credit_note %}Credit note no.{% else %}Invoice no.{% endif %}</td><td>{{ inv.number }}</td></tr>
+    <tr><td>Date of issue</td><td>{{ inv.issue_date|date:"d M Y" }}</td></tr>
+    {% if not inv.is_credit_note %}<tr><td>Due date</td><td>{{ inv.due_date|date:"d M Y" }}</td></tr>{% endif %}
+    <tr><td>Billing period</td><td>{{ inv.period_start|date:"d M Y" }} – {{ inv.period_end|date:"d M Y" }}</td></tr>
+    <tr><td>Contract</td><td>{{ inv.subscription.number }}</td></tr>
+    {% if inv.credit_for %}<tr><td>Against invoice</td><td>{{ inv.credit_for.number }}</td></tr>{% endif %}
+    {% if inv.replaces %}<tr><td>Replaces</td><td>{{ inv.replaces.number }}</td></tr>{% endif %}
+  </table></div>
+</section>
+<div class="items-scroll"><table class="items"><thead><tr><th>#</th><th>Description</th><th class="r">Qty</th><th class="r">Unit price</th><th class="r">Discount</th><th class="r">Taxable value</th><th class="r">Tax %</th><th class="r">Tax</th></tr></thead><tbody>
+{% for l in lines %}<tr><td class="n">{{ forloop.counter }}</td><td>{{ l.description }}</td><td class="r">{{ l.quantity }}</td><td class="r">{{ l.unit_price|money }}</td><td class="r">{% if l.discount %}{{ l.discount|money }}{% else %}–{% endif %}</td><td class="r">{{ l.amount|money }}</td><td class="r">{% if l.tax_rate %}{{ l.tax_rate|floatformat:"-2" }}%{% else %}–{% endif %}</td><td class="r">{{ l.tax_amount|money }}</td></tr>{% endfor %}</tbody></table></div>
+<div class="totals-wrap"><div>
+  {% if inv.tax_summary and inv.tax_total %}<div class="section" style="margin-top:0"><h3>Tax summary</h3><table class="tax"><tr><th>Rate</th><th class="r">Taxable value</th><th class="r">Tax</th></tr>{% for t in inv.tax_summary %}<tr><td>{{ t.name|default:"Tax" }} {{ t.rate|floatformat:"-2" }}%</td><td class="r">{{ t.taxable|money }}</td><td class="r">{{ t.tax|money }}</td></tr>{% endfor %}</table></div>{% endif %}
+  {% if inv.discount_label %}<p class="section" style="margin-top:12px"><b>Discount applied:</b> {{ inv.discount_label }}</p>{% endif %}</div>
+  <table class="sum"><tr><td>Subtotal</td><td>{{ inv.subtotal|money }}</td></tr>{% if inv.discount_total %}<tr><td>Discount</td><td>−{{ inv.discount_total|money }}</td></tr>{% endif %}<tr><td>Total tax</td><td>{{ inv.tax_total|money }}</td></tr>
+  <tr class="grand"><td>{% if inv.is_credit_note %}Credit total{% else %}Total{% endif %}</td><td>{{ inv.total|money }}</td></tr>
+  {% if not inv.is_credit_note %}{% if inv.credited_total %}<tr><td>Credited</td><td>−{{ inv.credited_total|money }}</td></tr>{% endif %}<tr><td>Amount paid</td><td>{{ inv.amount_paid|money }}</td></tr><tr class="due"><td>Balance due</td><td>{{ inv.balance|money }}</td></tr>{% endif %}</table></div>
+<p class="words"><b>Amount in words:</b> {{ inv.total|in_words }}</p>
+{% if payments %}<section class="section"><h3>Payments received</h3><table class="tax"><tr><th>Date</th><th>Method</th><th>Reference</th><th class="r">Amount</th></tr>{% for p in payments %}<tr><td>{{ p.date|date:"d M Y" }}</td><td>{{ p.get_method_display }}</td><td>{{ p.reference|default:"–" }}</td><td class="r">{{ p.amount|money }}</td></tr>{% endfor %}</table></section>{% endif %}
+{% if company.bank_details and not inv.is_credit_note %}<section class="section"><h3>How to pay</h3><p>{{ company.bank_details }}</p></section>{% endif %}
+{% if company.invoice_terms %}<section class="section"><h3>Terms and conditions</h3><p>{{ company.invoice_terms }}</p></section>{% endif %}
+<div class="sign"><div><b>Received with thanks</b>{{ inv.bill_to_name }}</div><div style="text-align:right"><b>For {{ company.name }}</b>Authorised signatory</div></div>
+{% endblock %}
+{% block footnote %}{{ company.invoice_footer }} This is a computer-generated document and is valid without a physical signature. Verify the code at right against our records.{% endblock %}
+{% block fingerprint %}Doc ID {{ inv.fingerprint }}{% endblock %}

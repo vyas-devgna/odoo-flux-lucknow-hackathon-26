@@ -59,7 +59,7 @@ def revenue(request):
         return _csv("revenue-invoices", ["Number", "Customer", "Issued", "Due", "Total", "Balance", "Status"], ([i.number, i.bill_to_name, i.issue_date, i.due_date, i.total, i.balance, i.display_state] for i in qs))
     trend = reports.failed_payment_trend()
     ctx.update({"s": s, "view": view, "views": [("overdue", "Overdue"), ("outstanding", "Outstanding"), ("paid", "Paid")], "page": paginate(request, qs), "title": "Revenue",
-                "cash_cfg": {"type": "bar", "labels": [r["label"] for r in cash], "datasets": [{"label": "Invoiced", "data": [float(r["invoiced"]) for r in cash], "color": "orange"}, {"label": "Collected", "data": [float(r["collected"]) for r in cash], "color": "accent"}]},
+                "cash_cfg": {"type": "bar", "labels": [r["label"] for r in cash], "datasets": [{"label": "Invoiced", "data": [float(r["invoiced"]) for r in cash], "color": "c3"}, {"label": "Collected", "data": [float(r["collected"]) for r in cash], "color": "c1"}]},
                 "fail_trend": trend, "top": reports.top_customers(8, f)})
     return render(request, "core/reports/revenue.html", ctx)
 
@@ -76,10 +76,10 @@ def mrr(request):
     get = lambda k: cells.get(k, [Decimal(0), 0])
     ctx.update({"series": series, "br": br, "get": {k: get(k) for k in ("new", "expansion", "reactivation", "contraction", "pause", "churn", "renewal")},
                 "title": "Recurring revenue", "mrr_by_plan": reports.mrr_by_plan(f),
-                "mrr_cfg": {"type": "line", "labels": [r["label"] for r in series], "datasets": [{"label": "MRR", "data": [float(r["closing"]) for r in series], "color": "accent", "fill": True}]},
+                "mrr_cfg": {"type": "line", "labels": [r["label"] for r in series], "datasets": [{"label": "MRR", "data": [float(r["closing"]) for r in series], "color": "c1", "fill": True}]},
                 "move_cfg": {"type": "bar", "stacked": True, "legend": True, "labels": [r["label"] for r in series], "datasets": [
-                    {"label": "New", "data": [float(r["new"]) for r in series], "color": "green"}, {"label": "Expansion", "data": [float(r["expansion"] + r["reactivation"]) for r in series], "color": "accent"},
-                    {"label": "Contraction", "data": [float(r["contraction"] + r["pause"]) for r in series], "color": "amber"}, {"label": "Churn", "data": [float(r["churn"]) for r in series], "color": "red"}]},
+                    {"label": "New", "data": [float(r["new"]) for r in series], "color": "c1"}, {"label": "Expansion", "data": [float(r["expansion"] + r["reactivation"]) for r in series], "color": "c2"},
+                    {"label": "Contraction", "data": [float(r["contraction"] + r["pause"]) for r in series], "color": "c3"}, {"label": "Churn", "data": [float(r["churn"]) for r in series], "color": "c4"}]},
                 "forecast": reports.renewal_forecast(180, f)})
     return render(request, "core/reports/mrr.html", ctx)
 
@@ -100,7 +100,7 @@ def receivables(request):
     if request.GET.get("export") == "csv":
         return _csv("receivables", ["Invoice", "Customer", "Due", "Days overdue", "Balance"], ([i.number, i.bill_to_name, i.due_date, i.days_overdue, i.balance] for i in qs))
     ctx.update({"aging": ag, "aging_total": total, "page": paginate(request, qs), "title": "Receivables", "today": timezone.localdate(),
-                "chart_cfg": {"type": "bar", "labels": [b["label"] for b in ag], "datasets": [{"label": "Outstanding", "data": [float(b["amount"]) for b in ag], "color": "orange"}]}})
+                "chart_cfg": {"type": "bar", "labels": [b["label"] for b in ag], "datasets": [{"label": "Outstanding", "data": [float(b["amount"]) for b in ag], "color": "c3"}]}})
     return render(request, "core/reports/receivables.html", ctx)
 
 
@@ -115,5 +115,5 @@ def breakdown(request):
     if request.GET.get("export") == "csv":
         return _csv(f"revenue-by-{dim}", [dim.title(), "Net revenue", "Invoices"], ([r["label"], r["net"], r["invoices"]] for r in rows))
     ctx.update({"rows": rows, "total": total, "dim": dim, "dims": [("plan", "Plan"), ("product", "Product"), ("customer", "Customer"), ("salesperson", "Salesperson")], "title": "Breakdown",
-                "chart_cfg": {"type": "bar", "labels": [r["label"] for r in rows[:10]], "datasets": [{"label": "Net revenue", "data": [float(r["net"]) for r in rows[:10]], "color": "accent"}]}})
+                "chart_cfg": {"type": "bar", "labels": [r["label"] for r in rows[:10]], "datasets": [{"label": "Net revenue", "data": [float(r["net"]) for r in rows[:10]], "color": "c1"}]}})
     return render(request, "core/reports/breakdown.html", ctx)

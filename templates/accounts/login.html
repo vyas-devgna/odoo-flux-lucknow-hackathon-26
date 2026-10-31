@@ -1,5 +1,5 @@
 {% extends 'accounts/auth_base.html' %}{% block body %}
-<div><h1>Welcome back</h1><p class="mute" style="margin:6px 0 0">Sign in to manage or view your subscriptions.</p></div>
+<div><h1>Welcome back</h1><p class="mute" style="margin:8px 0 0">Sign in to manage or view your subscriptions.</p></div>
 <form method="post" class="form">{% csrf_token %}{{ form.non_field_errors }}
 <input type="hidden" name="next" value="{{ next }}">
 {% for field in form %}{% include 'accounts/_field.html' %}{% endfor %}

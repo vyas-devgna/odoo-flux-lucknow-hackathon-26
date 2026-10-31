@@ -156,7 +156,9 @@ def invoice_pdf(request, pk):
 @customer_required
 def invoice_print(request, pk):
     inv = get_object_or_404(_invoices(request), pk=pk)
-    return render(request, "billing/print.html", {"inv": inv, "lines": inv.lines.all(), "payments": inv.payments.filter(status="succeeded")})
+    from django.urls import reverse
+    return render(request, "documents/invoice.html", {"inv": inv, "lines": inv.lines.all(), "payments": inv.payments.filter(status="succeeded"), "embed": bool(request.GET.get("embed")),
+                                                      "pdf_url": reverse("core:portal_invoice_pdf", args=[inv.pk])})
 
 
 @customer_required
@@ -213,3 +215,16 @@ def profile(request):
             messages.success(request, "Billing details updated. They apply to your next invoice.")
             return redirect("core:portal_profile")
     return render(request, "portal/profile.html", {"form": form, "mform": mform, "methods": c.payment_methods.all(), "title": "Account"})
+
+
+@customer_required
+def subscription_print(request, pk):
+    from subscriptions.views import quotation_ctx
+    sub = get_object_or_404(_subs(request).select_related("plan", "customer", "salesperson"), pk=pk)
+    return render(request, "documents/quotation.html", quotation_ctx(request, sub))
+
+
+@customer_required
+def statement(request):
+    from .views import statement_ctx
+    return render(request, "documents/statement.html", statement_ctx(request, _mine(request)))

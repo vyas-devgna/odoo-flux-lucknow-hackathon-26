@@ -63,28 +63,59 @@ function counters() {
   });
 }
 
-/* ---------- charts (Chart.js) */
+/* ---------- charts (Chart.js) ----------
+   Spec: 2px lines, bars <= 24px with 4px data-end radius, 2px surface gaps in stacks, hairline solid grid, text in ink
+   tokens (never series colour), one tooltip listing every series with a crosshair, legend for >= 2 series, and a table twin. */
 const charts = new Map();
-function palette() { return { ink: css('--ink'), mute: css('--mute'), line: css('--hair'), accent: css('--accent'), orange: css('--orange'), green: css('--green'), red: css('--red'), violet: css('--violet'), amber: css('--amber'), card: css('--card') }; }
-function chartsTheme() { const p = palette(); charts.forEach(c => { if (c.options.scales) Object.values(c.options.scales).forEach(s => { if (s.grid) s.grid.color = p.line; if (s.ticks) s.ticks.color = p.mute; }); c.update('none'); }); }
+const tok = n => css('--' + n);
+const fmtMoney = v => '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+const fmtCompact = v => { const a = Math.abs(v), s = v < 0 ? '−' : ''; return '₹' + s + (a >= 1e7 ? (a / 1e7).toFixed(1) + 'Cr' : a >= 1e5 ? (a / 1e5).toFixed(1) + 'L' : a >= 1e3 ? (a / 1e3).toFixed(0) + 'K' : a); };
+const crosshair = { id: 'crosshair', afterDatasetsDraw(c) { const t = c.tooltip; if (c.config.type !== 'line' || !t || !t.getActiveElements().length) return; const x = t.getActiveElements()[0].element.x, { top, bottom } = c.chartArea, g = c.ctx; g.save(); g.strokeStyle = tok('hair'); g.lineWidth = 1; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.restore(); } };
+const endDot = { id: 'endDot', afterDatasetsDraw(c) { if (c.config.type !== 'line') return; c.data.datasets.forEach((d, i) => { if (!c.isDatasetVisible(i)) return; const pts = c.getDatasetMeta(i).data, p = pts[pts.length - 1]; if (!p) return; const g = c.ctx; g.save(); g.fillStyle = d.borderColor; g.strokeStyle = tok('card'); g.lineWidth = 2; g.beginPath(); g.arc(p.x, p.y, 5, 0, 7); g.fill(); g.stroke(); g.restore(); }); } };
+function externalTooltip(cfg) {
+  return ctx => {
+    const { chart, tooltip } = ctx; let el = chart.canvas.parentNode.querySelector('.ctip');
+    if (!el) { el = document.createElement('div'); el.className = 'ctip'; el.setAttribute('role', 'status'); chart.canvas.parentNode.appendChild(el); }
+    if (tooltip.opacity === 0) { el.style.opacity = 0; return; }
+    el.replaceChildren(); const t = document.createElement('div'); t.className = 't'; t.textContent = tooltip.title[0]; el.appendChild(t);
+    tooltip.dataPoints.forEach(dp => { const r = document.createElement('div'), l = document.createElement('span'), k = document.createElement('i'), v = document.createElement('b'); r.className = 'r'; k.style.setProperty('--k', dp.dataset.borderColor); l.append(k, document.createTextNode(dp.dataset.label)); v.textContent = cfg.plain ? dp.formattedValue : fmtMoney(dp.raw); r.append(l, v); el.appendChild(r); });
+    const w = chart.canvas.parentNode.clientWidth, x = tooltip.caretX, ew = el.offsetWidth; el.style.opacity = 1; el.style.left = Math.max(0, Math.min(w - ew, x + 16 > w - ew ? x - ew - 16 : x + 16)) + 'px'; el.style.top = Math.max(0, tooltip.caretY - el.offsetHeight / 2) + 'px';
+  };
+}
+function buildChart(cv) {
+  const cfg = JSON.parse(document.getElementById(cv.dataset.chart).textContent), surface = tok('card');
+  const col = n => tok(n) || n, line = cfg.type === 'line', bar = cfg.type === 'bar';
+  const datasets = cfg.datasets.map(d => { const c = col(d.color); return { label: d.label, data: d.data, borderColor: c, backgroundColor: line ? `color-mix(in srgb, ${c} 10%, transparent)` : c, borderWidth: line ? 2 : (cfg.stacked ? 2 : 0), borderColor_: c,
+    ...(line ? { tension: .35, fill: !!d.fill, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: c, pointHoverBorderColor: surface, pointHoverBorderWidth: 2, borderCapStyle: 'round', borderJoinStyle: 'round' }
+      : { maxBarThickness: 24, borderRadius: cfg.stacked ? 0 : { topLeft: 4, topRight: 4 }, borderSkipped: 'bottom', categoryPercentage: .7, barPercentage: .9, ...(cfg.stacked ? { borderColor: surface } : {}) }) }; });
+  if (bar && cfg.stacked) datasets.forEach(d => { d.stack = 's'; });
+  const tickColor = tok('mute'), grid = tok('line');
+  const c = new Chart(cv, { type: cfg.type, data: { labels: cfg.labels, datasets }, options: {
+    responsive: true, maintainAspectRatio: false, animation: reduce ? false : { duration: 600, easing: 'easeOutCubic' }, interaction: { mode: 'index', intersect: false }, layout: { padding: { right: line ? 8 : 0, top: 4 } },
+    plugins: { legend: { display: false }, tooltip: { enabled: false, external: externalTooltip(cfg), mode: 'index', intersect: false, position: 'nearest' } },
+    scales: { x: { stacked: !!cfg.stacked, grid: { display: false }, border: { color: grid }, ticks: { color: tickColor, padding: 8, maxRotation: 0, autoSkip: true } },
+              y: { stacked: !!cfg.stacked, beginAtZero: true, grid: { color: grid, lineWidth: 1 }, border: { display: false }, ticks: { color: tickColor, padding: 8, maxTicksLimit: 5, callback: v => cfg.plain ? v : fmtCompact(v) } } } }, plugins: [crosshair, endDot] });
+  return { chart: c, cfg };
+}
+function figureExtras(cv, chart, cfg) {
+  const fig = cv.closest('figure.chart'); if (!fig || fig.dataset.built) return; fig.dataset.built = 1;
+  const cap = fig.querySelector('figcaption'); const many = cfg.datasets.length > 1;
+  if (cap && many) { const lg = document.createElement('div'); lg.className = 'legend' + (cfg.type === 'bar' ? ' bars' : ''); lg.setAttribute('role', 'group'); lg.setAttribute('aria-label', 'Series');
+    cfg.datasets.forEach((d, i) => { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-pressed', 'true'); const k = document.createElement('i'); k.style.setProperty('--k', tok(d.color)); b.append(k, document.createTextNode(d.label));
+      b.onclick = () => { const on = chart.isDatasetVisible(i); chart.setDatasetVisibility(i, !on); b.setAttribute('aria-pressed', String(!on)); chart.update(); }; lg.appendChild(b); }); cap.appendChild(lg); }
+  const t = document.createElement('div'); t.className = 'chart-table tw'; const tb = document.createElement('table'), hd = document.createElement('tr'); hd.appendChild(document.createElement('th'));
+  cfg.datasets.forEach(d => { const th = document.createElement('th'); th.className = 'right'; th.textContent = d.label; hd.appendChild(th); }); const th = document.createElement('thead'); th.appendChild(hd); tb.appendChild(th);
+  const body = document.createElement('tbody'); cfg.labels.forEach((lab, r) => { const tr = document.createElement('tr'), td0 = document.createElement('td'); td0.textContent = lab; tr.appendChild(td0); cfg.datasets.forEach(d => { const td = document.createElement('td'); td.className = 'right num'; td.textContent = cfg.plain ? d.data[r] : fmtMoney(d.data[r]); tr.appendChild(td); }); body.appendChild(tr); }); tb.appendChild(body); t.appendChild(tb); fig.appendChild(t);
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'chip-btn'; btn.textContent = 'Table'; btn.setAttribute('aria-pressed', 'false'); btn.onclick = () => { const on = fig.classList.toggle('as-table'); btn.setAttribute('aria-pressed', String(on)); btn.textContent = on ? 'Chart' : 'Table'; };
+  const right = document.createElement('div'); right.className = 'row-flex'; if (cap) { right.append(...cap.querySelectorAll('.legend')); right.appendChild(btn); cap.appendChild(right); }
+}
 function initCharts() {
   if (!window.Chart) return;
-  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily; Chart.defaults.font.size = 11; Chart.defaults.color = css('--mute');
-  $$('canvas[data-chart]:not([data-ready])').forEach(cv => {
-    cv.dataset.ready = 1; const cfg = JSON.parse(document.getElementById(cv.dataset.chart).textContent), p = palette();
-    const col = n => p[n] || n; const money = v => '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
-    const compact = v => { v = Math.abs(v) >= 1e7 ? (v / 1e7).toFixed(1) + 'Cr' : Math.abs(v) >= 1e5 ? (v / 1e5).toFixed(1) + 'L' : Math.abs(v) >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v; return '₹' + v; };
-    const datasets = cfg.datasets.map(d => ({ ...d, borderColor: col(d.color), backgroundColor: d.type === 'line' || cfg.type === 'line' ? col(d.color) + '22' : col(d.color), borderRadius: cfg.type === 'bar' ? 5 : 0, borderWidth: cfg.type === 'doughnut' ? 0 : 2, tension: .35, pointRadius: 0, pointHoverRadius: 5, fill: !!d.fill, barPercentage: .7 }));
-    if (cfg.type === 'doughnut') datasets.forEach(d => { d.backgroundColor = d.colors.map(col); });
-    const c = new Chart(cv, { type: cfg.type, data: { labels: cfg.labels, datasets }, options: {
-      responsive: true, maintainAspectRatio: false, animation: reduce ? false : { duration: 700, easing: 'easeOutCubic' }, interaction: { mode: 'index', intersect: false },
-      cutout: cfg.type === 'doughnut' ? '72%' : undefined,
-      plugins: { legend: { display: !!cfg.legend, position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } }, tooltip: { backgroundColor: p.ink, titleColor: css('--bg'), bodyColor: css('--bg'), padding: 10, cornerRadius: 8, displayColors: true, callbacks: { label: i => ` ${i.dataset.label ? i.dataset.label + ': ' : ''}${cfg.plain ? i.formattedValue : money(i.parsed.y ?? i.parsed)}` } } },
-      scales: cfg.type === 'doughnut' ? {} : { x: { stacked: !!cfg.stacked, grid: { display: false }, ticks: { color: p.mute } }, y: { stacked: !!cfg.stacked, beginAtZero: true, grid: { color: p.line }, border: { display: false }, ticks: { color: p.mute, callback: v => cfg.plain ? v : compact(v), maxTicksLimit: 5 } } } } });
-    charts.set(cv, c);
-  });
-  charts.forEach((c, cv) => { if (!document.body.contains(cv)) { c.destroy(); charts.delete(cv); } });
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily; Chart.defaults.font.size = 12; Chart.defaults.color = tok('mute');
+  $$('canvas[data-chart]:not([data-ready])').forEach(cv => { cv.dataset.ready = 1; const { chart, cfg } = buildChart(cv); charts.set(cv, { chart, cfg }); figureExtras(cv, chart, cfg); });
+  charts.forEach((v, cv) => { if (!document.body.contains(cv)) { v.chart.destroy(); charts.delete(cv); } });
 }
+function chartsTheme() { const cvs = [...charts.keys()]; charts.forEach(v => v.chart.destroy()); charts.clear(); cvs.forEach(cv => { delete cv.dataset.ready; cv.closest('figure.chart')?.querySelector('.ctip')?.remove(); }); initCharts(); }
 
 /* ---------- command palette */
 let palItems = [], palIdx = 0, palTimer;
@@ -132,8 +163,37 @@ document.addEventListener('keydown', e => {
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $$('details[open]').forEach(d => { d.removeAttribute('open'); d.querySelector('summary')?.focus(); }); });
 
+/* ---------- document viewer (invoices, quotations, statements) ---------- */
+let docOpener = null;
+function docOpen(a) {
+  const dv = $('#docview'); if (!dv) return false; const url = a.getAttribute('href'), frame = $('#doc-frame'), load = $('#doc-load'), pdf = $('#doc-pdf');
+  docOpener = a; $('#doc-title').textContent = a.dataset.docTitle || a.textContent.trim(); load.classList.remove('hide'); frame.classList.remove('ready');
+  frame.onload = () => { frame.classList.add('ready'); load.classList.add('hide'); }; frame.src = url + (url.includes('?') ? '&' : '?') + 'embed=1';
+  if (a.dataset.docPdf) { pdf.href = a.dataset.docPdf; pdf.hidden = false; } else pdf.hidden = true;
+  dv.inert = false; document.body.classList.add('doc-open'); setTimeout(() => $('#doc-print')?.focus(), 60); return true;
+}
+function docClose() { const dv = $('#docview'); if (!dv || !document.body.classList.contains('doc-open')) return; document.body.classList.remove('doc-open'); dv.inert = true; setTimeout(() => { const f = $('#doc-frame'); if (f && !document.body.classList.contains('doc-open')) f.removeAttribute('src'); }, 360); docOpener?.focus?.(); }
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[data-doc]'); if (a && !e.ctrlKey && !e.metaKey && !e.shiftKey && docOpen(a)) { e.preventDefault(); e.stopPropagation(); $$('details[open]').forEach(d => d.removeAttribute('open')); return; }
+  if (e.target.closest('#doc-close') || e.target.id === 'doc-bg') docClose();
+  if (e.target.closest('#doc-print')) { const f = $('#doc-frame'); try { f.contentWindow.focus(); f.contentWindow.print(); } catch (err) { window.open(f.src.replace(/[?&]embed=1/, ''), '_blank'); } }
+}, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('doc-open')) { e.preventDefault(); docClose(); } });
+
+/* ---------- forms: dirty tracking, Ctrl+S, money adornment, first-field focus ---------- */
+let submitting = false;
+document.addEventListener('input', e => { const f = e.target.closest('form[data-dirty]'); if (f) f.classList.add('is-dirty'); });
+document.addEventListener('submit', () => { submitting = true; setTimeout(() => submitting = false, 4000); });
+window.addEventListener('beforeunload', e => { if (!submitting && document.querySelector('form[data-dirty].is-dirty')) { e.preventDefault(); e.returnValue = ''; } });
+document.addEventListener('htmx:beforeRequest', e => { if (!submitting && document.querySelector('form[data-dirty].is-dirty') && e.detail.verb === 'get' && !confirm('You have unsaved changes. Leave this page?')) e.preventDefault(); });
+document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { const f = document.querySelector('form[data-dirty]'); if (f) { e.preventDefault(); f.requestSubmit(); } } });
+function enhanceForms() {
+  $$('input[data-money]:not([data-wrapped])').forEach(i => { i.dataset.wrapped = 1; const w = document.createElement('span'); w.className = 'money'; i.parentNode.insertBefore(w, i); w.appendChild(i); });
+  const f = $('form[data-dirty]'); if (f && !f.dataset.focused) { f.dataset.focused = 1; const first = $('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([readonly]), select, textarea', f); if (first && !first.value && matchMedia('(min-width:900px)').matches) first.focus({ preventScroll: true }); }
+}
+
 /* ---------- init (runs on load and after every boosted navigation) */
-function init() { $$('.formset-row [id]:not([aria-label]):not([type=hidden])').forEach(i => { const l = i.closest('td')?.dataset.l; if (l) i.setAttribute('aria-label', l); }); $$('input[id$=-DELETE]:not([aria-label])').forEach(i => i.setAttribute('aria-label', 'Remove row')); flash(); counters(); initCharts(); document.body.classList.remove('open'); $$('input[autofocus]').forEach(i => i.focus()); }
+function init() { enhanceForms(); if (!$('#docview') || $('#docview').inert) document.body.classList.remove('doc-open'); $$('.formset-row [id]:not([aria-label]):not([type=hidden])').forEach(i => { const l = i.closest('td')?.dataset.l; if (l) i.setAttribute('aria-label', l); }); $$('input[id$=-DELETE]:not([aria-label])').forEach(i => i.setAttribute('aria-label', 'Remove row')); flash(); counters(); initCharts(); document.body.classList.remove('open'); $$('input[autofocus]').forEach(i => i.focus()); }
 document.addEventListener('DOMContentLoaded', init);
 document.addEventListener('htmx:afterSettle', init);
 document.addEventListener('htmx:responseError', () => toast('Something went wrong. Please try again.', 'error'));

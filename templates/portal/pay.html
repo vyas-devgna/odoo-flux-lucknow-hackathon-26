@@ -6,6 +6,6 @@
 <div class="card"><header><h2>{% if provider_on %}Or pay by bank / UPI{% else %}Pay by bank or UPI{% endif %}</h2></header>
 {% if co.bank_details %}<div class="callout" style="white-space:pre-line">{{ co.bank_details }}</div>{% else %}<p class="small mute">Ask us for payment details.</p>{% endif %}
 {% if pending %}<div class="callout warn" style="margin-top:12px">You reported {{ pending.amount|money }} (ref {{ pending.reference }}). We're confirming it.</div>{% else %}
-<p class="small mute" style="margin:14px 0 6px">After paying, tell us the reference so we can match it to this invoice.</p>
+<p class="small mute" style="margin:16px 0 8px">After paying, tell us the reference so we can match it to this invoice.</p>
 <form method="post" class="form" style="grid-template-columns:1fr">{% csrf_token %}{{ form.non_field_errors }}{% for field in form %}{% include 'accounts/_field.html' %}{% endfor %}<button class="btn primary">I've made this payment</button></form>{% endif %}</div></div>
 <div style="margin-top:16px"><a class="btn" href="{% url 'core:portal_invoice' inv.pk %}">Back to invoice</a></div>{% endblock %}

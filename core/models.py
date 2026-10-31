@@ -29,6 +29,7 @@ class CompanySettings(models.Model):
     email = models.EmailField("Billing email", blank=True)
     phone = models.CharField(max_length=30, blank=True)
     bank_details = models.TextField("Payment instructions", blank=True, help_text="Shown on invoices, e.g. bank account or UPI ID.")
+    invoice_terms = models.TextField("Terms and conditions", blank=True, default="1. Payment is due by the due date shown on this document.\n2. Please quote the document number with every payment.\n3. Any query must be raised in writing within 7 days of receipt.\n4. Amounts are in Indian Rupees (INR). Taxes are shown separately.", help_text="Printed on invoices, quotations and statements. One point per line.")
     invoice_footer = models.CharField(max_length=300, blank=True, default="Thank you for your business.")
     default_payment_terms = models.CharField(max_length=10, default="net15", choices=[("immediate", "Immediate"), ("net15", "Net 15"), ("net30", "Net 30"), ("net60", "Net 60")])
     auto_confirm_invoices = models.BooleanField("Confirm invoices automatically", default=False, help_text="Billing runs create invoices already confirmed instead of drafts.")

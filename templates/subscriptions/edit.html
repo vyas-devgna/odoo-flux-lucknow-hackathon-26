@@ -1,13 +1,13 @@
 {% extends 'base.html' %}{% load ui %}{% block crumbs %}<div class="crumbs"><a href="{% url 'subscriptions:list' %}">Subscriptions</a><a href="{% url 'subscriptions:detail' sub.pk %}">{{ sub.number }}</a><span>Edit</span></div>{% endblock %}
 {% block heading %}<h1>{% if sub.is_editable %}Edit quotation{% else %}Edit lines and terms{% endif %}</h1><p>{{ sub.customer }} · {{ sub.plan.name }}{% if not sub.is_editable %} · changes apply from the next invoice; issued invoices never change{% endif %}</p>{% endblock %}
-{% block content %}<form method="post" class="stack" style="max-width:1060px">{% csrf_token %}
+{% block content %}<div class="form-layout"><form method="post" class="stack" data-dirty>{% csrf_token %}
 <div class="card"><div class="form">{{ form.non_field_errors }}{% for field in form %}<div class="{% if field.name == 'notes' %}full{% endif %}">{% include 'accounts/_field.html' %}</div>{% endfor %}</div></div>
 <div class="card flush"><header><h2>Lines</h2><span class="sub">Prices default from the catalogue; adjust per customer where agreed.</span></header>
 {{ formset.management_form }}{% if formset.non_form_errors %}<div class="callout bad" style="margin:12px 20px 0">{{ formset.non_form_errors }}</div>{% endif %}<div class="tw"><table class="fs-table" style="margin-top:12px"><thead><tr><th>Product</th><th>Variant</th><th>Description</th><th>Qty</th><th>Unit price</th><th>Tax</th><th>Recurring</th><th>Remove</th></tr></thead><tbody id="rows">
 {% for f in formset %}<tr class="formset-row">{% for h in f.hidden_fields %}{{ h }}{% endfor %}{% for fld in f.visible_fields %}<td data-l="{{ fld.label }}">{{ fld }}{{ fld.errors }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
-<div style="padding:12px 20px 20px"><button type="button" class="btn sm" data-add-row="#rows" data-prefix="{{ formset.prefix }}">{% icon 'plus' %}Add line</button></div>
+<div class="p-add"><button type="button" class="btn sm" data-add-row="#rows" data-prefix="{{ formset.prefix }}">{% icon 'plus' %}Add line</button></div>
 <template id="empty-row"><tr class="formset-row">{% for h in formset.empty_form.hidden_fields %}{{ h }}{% endfor %}{% for fld in formset.empty_form.visible_fields %}<td data-l="{{ fld.label }}">{{ fld }}</td>{% endfor %}</tr></template></div>
-<div class="btns"><button class="btn primary">Save changes</button><a class="btn" href="{% url 'subscriptions:detail' sub.pk %}">Cancel</a></div></form>
+<div class="form-actions"><button class="btn primary">Save changes</button><a class="btn" href="{% url 'subscriptions:detail' sub.pk %}">Cancel</a><span class="dirty">Unsaved changes</span></div></form>{% include 'partials/rail.html' with rail_help=help rail_title="Editing a contract" %}</div>
 <script>
 (function(){const PRICES={{ prices_json|safe }},VARS={{ variants_json|safe }};
 function wire(tr){const p=tr.querySelector('select[name$=-product]'),v=tr.querySelector('select[name$=-variant]'),u=tr.querySelector('input[name$=-unit_price]');if(!p||p.dataset.w)return;p.dataset.w=1;

@@ -26,7 +26,7 @@ def company_settings(request):
         audit.log(request.user, "settings.update", detail="company settings")
         messages.success(request, "Settings saved.")
         return redirect("core:settings")
-    return render(request, "core/settings.html", {"form": form, "title": "Settings"})
+    return render(request, "core/settings.html", {"form": form, "title": "Settings", "help": ["Company details appear on every invoice, quotation and statement.", "Terms and conditions print on each document, one point per line.", "Auto-confirm and auto-email decide what billing runs do with new invoices.", "Reminder timing feeds the automation rules."]})
 
 
 @admin_required
@@ -69,7 +69,7 @@ def automation_rule(request, pk=None):
         audit.log(request.user, "automation.save", saved)
         messages.success(request, "Rule saved.")
         return redirect("core:automation")
-    return render(request, "core/automation_rule.html", {"form": form, "obj": obj, "title": "Automation rule"})
+    return render(request, "core/automation_rule.html", {"form": form, "obj": obj, "title": "Automation rule", "help": ["A rule runs at most once per record and period, so re-runs never duplicate emails.", "Scheduled triggers use the number of days before (renewal, due, expiry) or after (overdue).", "Disable a rule instead of deleting it to keep its history."]})
 
 
 @admin_required
@@ -81,7 +81,7 @@ def template_edit(request, pk):
         audit.log(request.user, "template.save", obj)
         messages.success(request, "Template saved.")
         return redirect("core:automation")
-    return render(request, "core/template_edit.html", {"form": form, "obj": obj, "title": f"Template · {obj.name}"})
+    return render(request, "core/template_edit.html", {"form": form, "obj": obj, "title": f"Template · {obj.name}", "help": ["Variables in braces are replaced per customer: {customer} {number} {amount} {due_date} {plan} {company} {link}.", "Plain text only. Keep subjects short and specific."]})
 
 
 @admin_required

@@ -2,7 +2,7 @@
 {% block crumbs %}<div class="crumbs"><a href="{{ res.url_list }}">{{ res.title }}</a><span>{% if obj %}{{ obj }}{% else %}New{% endif %}</span></div>{% endblock %}
 {% block heading %}<h1>{{ title }}</h1>{% endblock %}
 {% block content %}
-<form method="post" class="stack" style="max-width:960px">{% csrf_token %}
+<div class="form-layout"><form method="post" class="stack" data-dirty>{% csrf_token %}
 {% if form.non_field_errors %}<div class="callout bad">{{ form.non_field_errors }}</div>{% endif %}
 {% if sections %}{% for title, fields in sections %}<div class="card"><header><h2>{{ title }}</h2></header><div class="form">{% for field in fields %}<div class="{% if field.name == 'notes' or field.name == 'address' or field.name == 'products' or field.name == 'description' or field.name == 'plans' %}full{% endif %}">{% include 'accounts/_field.html' %}</div>{% endfor %}</div></div>{% endfor %}
 {% else %}<div class="card"><div class="form">{% for field in form %}<div class="{% if field.name == 'notes' or field.name == 'address' or field.name == 'products' or field.name == 'description' or field.name == 'plans' %}full{% endif %}">{% include 'accounts/_field.html' %}</div>{% endfor %}</div></div>{% endif %}
@@ -10,10 +10,10 @@
 {{ formset.management_form }}{{ formset.non_form_errors }}
 <div class="tw"><table class="fs-table" style="margin-top:12px"><thead><tr>{% for f in formset.forms.0.visible_fields %}<th>{{ f.label }}</th>{% endfor %}</tr></thead><tbody id="rows">
 {% for f in formset %}<tr class="formset-row">{% for h in f.hidden_fields %}{{ h }}{% endfor %}{% for fld in f.visible_fields %}<td data-l="{{ fld.label }}">{{ fld }}{{ fld.errors }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
-<div style="padding:12px 20px 20px"><button type="button" class="btn sm" data-add-row="#rows" data-prefix="{{ formset.prefix }}">{% icon 'plus' %}Add row</button></div>
+<div class="p-add"><button type="button" class="btn sm" data-add-row="#rows" data-prefix="{{ formset.prefix }}">{% icon 'plus' %}Add row</button></div>
 <template id="empty-row"><tr class="formset-row">{% for h in formset.empty_form.hidden_fields %}{{ h }}{% endfor %}{% for fld in formset.empty_form.visible_fields %}<td data-l="{{ fld.label }}">{{ fld }}</td>{% endfor %}</tr></template></div>{% endif %}
-<div class="btns"><button class="btn primary">Save</button><a class="btn" href="{{ res.url_list }}">Cancel</a>
-{% if obj %}<span style="margin-left:auto"></span><button class="btn danger" form="delete-form">Delete</button>{% endif %}</div></form>
+<div class="form-actions"><button class="btn primary">Save</button><a class="btn" href="{{ res.url_list }}">Cancel</a><span class="dirty">Unsaved changes</span>
+{% if obj %}<span class="ml-auto"></span><button class="btn danger" form="delete-form">Delete</button>{% endif %}</div></form>{% include 'partials/rail.html' with rail_help=res.help %}</div>
 {% if obj %}<form id="delete-form" method="post" action="{% url res.ns|add:':'|add:res.slug|add:'_delete' obj.pk %}" data-confirm="Delete {{ obj }}? If it is in use it can't be deleted; mark it inactive instead." data-confirm-tone="danger" data-confirm-label="Delete">{% csrf_token %}</form>{% endif %}
 <script>
 (function(){const sc=document.querySelectorAll('input[name=scope]');

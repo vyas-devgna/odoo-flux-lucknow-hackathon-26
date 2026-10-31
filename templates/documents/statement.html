@@ -1,0 +1,18 @@
+{% extends 'documents/base.html' %}{% load ui %}
+{% block doctitle %}Statement · {{ c }}{% endblock %}{% block doclabel %}Statement of account{% endblock %}
+{% block title_text %}Statement of account{% endblock %}
+{% block number %}As at {{ today|date:"d M Y" }}{% endblock %}
+{% block content %}
+<section class="parties">
+  <div class="box"><h3>Account</h3><div class="name">{{ c.display_name }}</div><p>{{ c.address }}</p><p>{{ c.email }}</p>{% if c.tax_id %}<p>Tax ID: <b>{{ c.tax_id }}</b></p>{% endif %}</div>
+  <div class="box"><h3>Summary</h3><table class="kv"><tr><td>Total charged</td><td>{{ charged|money }}</td></tr><tr><td>Payments and credits</td><td>{{ settled|money }}</td></tr><tr><td><b>Balance due</b></td><td><b>{{ balance|money }}</b></td></tr></table></div>
+</section>
+{% if aging %}<section class="section" style="margin-top:0"><h3>Ageing of balance due</h3><table class="tax"><tr>{% for a in aging %}<th class="r">{{ a.label }}</th>{% endfor %}</tr><tr>{% for a in aging %}<td class="r">{{ a.amount|money }}</td>{% endfor %}</tr></table></section>{% endif %}
+<section class="section breakable"><h3>Transactions</h3><div class="items-scroll"><table class="items"><thead><tr><th>Date</th><th>Reference</th><th>Description</th><th class="r">Charges</th><th class="r">Payments / credits</th><th class="r">Balance</th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.date|date:"d M Y" }}</td><td>{{ r.ref }}</td><td>{{ r.desc }}</td><td class="r">{% if r.debit %}{{ r.debit|money }}{% endif %}</td><td class="r">{% if r.credit %}{{ r.credit|money }}{% endif %}</td><td class="r">{{ r.bal|money }}</td></tr>{% empty %}<tr><td colspan="6" style="color:#5b616e">No transactions yet.</td></tr>{% endfor %}</tbody>
+<tfoot><tr><td colspan="3">Closing balance</td><td></td><td></td><td class="r">{{ balance|money }}</td></tr></tfoot></table></div></section>
+<p class="words"><b>Balance in words:</b> {{ balance|in_words }}</p>
+{% if company.bank_details %}<section class="section"><h3>How to pay</h3><p>{{ company.bank_details }}</p></section>{% endif %}
+<section class="section"><h3>Notice</h3><p>Please inform us in writing of any discrepancy within 7 days of receiving this statement; otherwise the balance shown is taken as agreed. Payments received after the statement date are not reflected.</p></section>
+{% endblock %}
+{% block fingerprint %}{{ c.email }} · {{ today|date:"Ymd" }}{% endblock %}

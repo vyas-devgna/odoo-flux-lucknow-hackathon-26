@@ -105,7 +105,9 @@ def subscription_new(request):
         messages.success(request, f"{sub.number} created as a draft. Review its lines, then send the quotation.")
         return redirect("subscriptions:detail", pk=sub.pk)
     plans = {p.pk: {"templates": list(p.templates.filter(active=True).values_list("pk", flat=True)), "min": p.min_quantity} for p in Plan.objects.all()}
-    return render(request, "subscriptions/new.html", {"form": form, "plans_json": json.dumps(plans), "title": "New quotation"})
+    help_ = ["Pick the customer and plan, optionally a template to pre-fill the product lines.", "A draft is private until you send it; sending emails the customer a link to review and accept it.",
+             "Accepting records who agreed, when, and the exact total, then the contract can start billing.", "You can create an alternative quote later if the customer wants options."]
+    return render(request, "subscriptions/new.html", {"form": form, "plans_json": json.dumps(plans), "title": "New quotation", "help": help_})
 
 
 def _get(pk):
@@ -152,7 +154,9 @@ def subscription_edit(request, pk):
         return redirect("subscriptions:detail", pk=pk)
     prices = {p.pk: str(p.sales_price) for p in Product.objects.all()}
     variants = {v.pk: {"product": v.product_id, "extra": str(v.extra_price)} for v in ProductVariant.objects.all()}
-    return render(request, "subscriptions/edit.html", {"sub": sub, "form": form, "formset": fs, "prices_json": json.dumps(prices), "variants_json": json.dumps(variants), "title": f"Edit {sub.number}"})
+    help_ = (["Lines and prices can be edited freely while this is a draft or quotation.", "Revising a sent quotation bumps its revision so an old acceptance can't be reused."] if sub.is_editable else
+             ["Changes here apply from the next invoice; issued invoices never change.", "Use Change plan or seats for immediate, prorated amendments with a cost preview.", "Every edit is recorded in the contract history and the recurring-revenue movements."])
+    return render(request, "subscriptions/edit.html", {"help": help_, "timeline": audit.timeline(sub), "sub": sub, "form": form, "formset": fs, "prices_json": json.dumps(prices), "variants_json": json.dumps(variants), "title": f"Edit {sub.number}"})
 
 
 ACTIONS = {"send": services.send_quotation, "confirm": services.confirm, "activate": services.activate, "pause": services.pause, "resume": services.resume}
@@ -271,7 +275,13 @@ def change_view(request, sub, portal):
     return render(request, tpl, ctx)
 
 
+def quotation_ctx(request, sub):
+    lines = list(sub.lines.select_related("product", "variant", "tax"))
+    return {"sub": sub, "lines": lines, "subtotal": sum((l.net_amount for l in lines), 0), "taxtotal": sum((l.tax_amount for l in lines), 0),
+            "acceptance": sub.acceptances.first(), "embed": bool(request.GET.get("embed")), "title": sub.number}
+
+
 @sales_required
 def subscription_print(request, pk):
     sub = _get(pk)
-    return render(request, "subscriptions/print.html", {"sub": sub, "lines": sub.lines.select_related("product", "variant", "tax"), "title": sub.number})
+    return render(request, "documents/quotation.html", quotation_ctx(request, sub))

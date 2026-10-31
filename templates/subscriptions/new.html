@@ -1,8 +1,8 @@
 {% extends 'base.html' %}{% load ui %}{% block crumbs %}<div class="crumbs"><a href="{% url 'subscriptions:quotes' %}">Quotations</a><span>New</span></div>{% endblock %}
 {% block heading %}<h1>New quotation</h1><p>Pick a customer and plan. A template pre-fills the product lines and validity.</p>{% endblock %}
-{% block content %}<form method="post" class="card" style="max-width:860px" x-data="{plan:'{{ form.plan.value|default:'' }}'}">{% csrf_token %}<div class="form">{{ form.non_field_errors }}
+{% block content %}<div class="form-layout"><form method="post" class="stack" data-dirty>{% csrf_token %}<div class="card"><div class="form">{{ form.non_field_errors }}
 {% for field in form %}<div class="{% if field.name == 'notes' %}full{% endif %}">{% include 'accounts/_field.html' %}{% if field.name == 'customer' %}<a class="small" style="color:var(--accent);font-weight:600" href="{% url 'core:customer_new' %}?then=quote">+ New customer</a>{% endif %}</div>{% endfor %}</div>
-<div class="btns" style="margin-top:20px"><button class="btn primary">Create draft</button><a class="btn" href="{% url 'subscriptions:quotes' %}">Cancel</a></div></form>
+</div><div class="form-actions"><button class="btn primary">Create draft</button><a class="btn" href="{% url 'subscriptions:quotes' %}">Cancel</a><span class="dirty">Unsaved changes</span></div></form>{% include 'partials/rail.html' with rail_help=help rail_title="How quotations work" %}</div>
 <script>
 (function(){const P={{ plans_json|safe }};const plan=document.getElementById('id_plan'),tpl=document.getElementById('id_template'),qty=document.getElementById('id_quantity');
 function sync(){const ok=(P[plan.value]||{templates:[]}).templates.map(String);[...tpl.options].forEach(o=>{o.hidden=!!(o.value&&plan.value&&!ok.includes(o.value))});

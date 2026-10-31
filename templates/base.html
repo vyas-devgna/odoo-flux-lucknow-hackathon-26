@@ -48,6 +48,12 @@
 {% block content %}{% endblock %}
 </main></div>
 <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+<div class="doc-bg" id="doc-bg"></div>
+<aside class="docview" id="docview" role="dialog" aria-modal="true" aria-labelledby="doc-title" inert>
+  <header><div class="grow"><b id="doc-title">Document</b><div class="xs mute">Preview of the printable document</div></div>
+    <a class="btn sm" id="doc-pdf" href="#" download hidden>{% icon 'download' %}PDF</a><button type="button" class="btn sm primary" id="doc-print">{% icon 'print' %}Print</button><button type="button" class="icon-btn" id="doc-close" aria-label="Close document">{% icon 'close' %}</button></header>
+  <div class="docbody"><iframe id="doc-frame" title="Document preview"></iframe><div class="docload" id="doc-load">Loading…</div></div>
+</aside>
 {% flash_json as flash %}{% if flash %}<script type="application/json" id="flash">{{ flash }}</script>{% endif %}
 <dialog id="confirm"><form method="dialog" class="dlg"><h2 id="confirm-t">Are you sure?</h2><p id="confirm-m"></p><div class="dlg-actions"><button class="btn" value="no">Cancel</button><button class="btn primary" id="confirm-ok" value="yes">Confirm</button></div></form></dialog>
 {% if user.is_internal %}<div class="pal-bg" id="pal" role="dialog" aria-modal="true" aria-label="Command palette"><div class="pal"><input id="palq" placeholder="Search customers, subscriptions, invoices — or jump to a page" autocomplete="off" aria-label="Search"><ul id="pall"></ul><div class="foot"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div></div></div>

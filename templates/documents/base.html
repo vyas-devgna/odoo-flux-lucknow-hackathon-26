@@ -1,0 +1,50 @@
+{% load static ui %}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{% block doctitle %}Document{% endblock %} · {{ company.name }}</title>
+<style>
+@font-face{font-family:"Inter";src:url("{% static 'vendor/inter.woff2' %}") format("woff2");font-weight:100 900}
+:root{--ink:#14161a;--mute:#5b616e;--rule:#c9ccd3;--soft:#f3f4f6;--serif:Georgia,"Times New Roman",Times,serif;--sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}html{background:#e6e8ec}
+body{margin:0;font:12px/18px var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased}
+.desk{padding:24px 16px 48px}
+.sheet{position:relative;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;background:#fff;padding:18mm 16mm 16mm;box-shadow:0 1px 3px rgba(0,0,0,.12),0 12px 40px -12px rgba(0,0,0,.25)}
+.stamp{position:absolute;top:96mm;left:50%;transform:translate(-50%,-50%) rotate(-24deg);font:700 72px/1 var(--sans);letter-spacing:.12em;color:rgba(20,22,26,.06);border:6px solid rgba(20,22,26,.06);padding:8px 28px;border-radius:8px;pointer-events:none;user-select:none;white-space:nowrap;z-index:0}
+.sheet>*:not(.stamp){position:relative;z-index:1}
+.stamp.paid{color:rgba(10,122,69,.10);border-color:rgba(10,122,69,.10)}.stamp.cancelled,.stamp.void{color:rgba(176,42,11,.10);border-color:rgba(176,42,11,.10)}
+.letterhead{display:flex;justify-content:space-between;gap:24px;padding-bottom:16px;border-bottom:3px double var(--ink)}
+.co h1{font:700 22px/28px var(--serif);margin:0;letter-spacing:.01em}.co p{margin:4px 0 0;color:var(--mute);white-space:pre-line}.co .ids{margin-top:8px;color:var(--ink);font-size:11px}
+.doc-title{text-align:right}.doc-title h2{font:700 20px/28px var(--serif);margin:0;letter-spacing:.14em;text-transform:uppercase}.doc-title .no{font:600 14px/20px var(--sans);margin-top:4px;font-variant-numeric:tabular-nums}
+.doc-title .status{display:inline-block;margin-top:8px;border:1px solid var(--ink);padding:0 8px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:16px 0}
+.box{border:1px solid var(--rule);padding:12px 16px}.box h3{font:600 10px/16px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin:0 0 8px}
+.box .name{font:700 14px/20px var(--serif)}.box p{margin:0;color:#2a2e36;white-space:pre-line}
+table.kv{width:100%;border-collapse:collapse}table.kv td{padding:2px 0;vertical-align:top}table.kv td:first-child{color:var(--mute);width:42%;padding-right:12px}table.kv td:last-child{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+table.items{width:100%;border-collapse:collapse;margin-top:4px}table.items th{font:600 10px/16px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);text-align:left;padding:8px;border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);background:var(--soft)}
+table.items td{padding:8px;border-bottom:1px solid var(--rule);vertical-align:top;font-variant-numeric:tabular-nums}table.items th.r,table.items td.r{text-align:right}table.items td.n{color:var(--mute);width:24px}
+table.items tfoot td{border-bottom:0;border-top:1px solid var(--ink);font-weight:700}
+tr{break-inside:avoid}thead{display:table-header-group}tfoot{display:table-footer-group}.section.breakable{break-inside:auto}
+.totals-wrap{display:grid;grid-template-columns:1fr 280px;gap:24px;margin-top:16px;align-items:start}
+table.sum{width:100%;border-collapse:collapse}table.sum td{padding:4px 0;font-variant-numeric:tabular-nums}table.sum td:last-child{text-align:right}
+table.sum tr.grand td{border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);padding:8px 0;font:700 14px/20px var(--sans)}
+table.sum tr.due td{font-weight:700}
+table.tax{width:100%;border-collapse:collapse;font-size:11px}table.tax th{font-weight:600;text-align:left;color:var(--mute);padding:4px 8px 4px 0;border-bottom:1px solid var(--rule)}table.tax th.r,table.tax td.r{text-align:right}table.tax td{padding:4px 8px 4px 0;font-variant-numeric:tabular-nums}
+.words{margin-top:16px;border:1px solid var(--rule);padding:8px 12px;font-style:italic}.words b{font-style:normal}
+.section{margin-top:16px;break-inside:avoid}.section h3{font:600 10px/16px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin:0 0 8px;padding-bottom:4px;border-bottom:1px solid var(--rule)}
+.section p,.section li{margin:0;color:#2a2e36;white-space:pre-line}.section ol{margin:0;padding-left:16px}.section li{white-space:normal;margin-bottom:4px}
+.sign{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:32px;break-inside:avoid}.sign div{border-top:1px solid var(--ink);padding-top:8px;font-size:11px;color:var(--mute)}.sign b{display:block;color:var(--ink);font-size:12px}
+.accepted{border:1px solid var(--ink);padding:12px 16px;margin-top:20px;break-inside:avoid}.accepted b{font-family:var(--serif)}
+.foot{margin-top:24px;padding-top:8px;border-top:1px solid var(--rule);display:flex;justify-content:space-between;gap:16px;color:var(--mute);font-size:10px;line-height:16px}
+.mono{font-family:ui-monospace,Menlo,monospace;letter-spacing:.04em}
+.toolbar{max-width:210mm;margin:0 auto 12px;display:flex;justify-content:space-between;align-items:center;gap:12px}.toolbar button,.toolbar a{font:600 13px/20px var(--sans);padding:8px 16px;border:1px solid #14161a;background:#14161a;color:#fff;border-radius:8px;cursor:pointer;text-decoration:none}.toolbar a{background:#fff;color:#14161a}
+.embed .toolbar{display:none}.embed .desk{padding:16px 16px 32px}
+@page{size:A4;margin:14mm 12mm 16mm;@bottom-center{content:"Page " counter(page) " of " counter(pages);font:10px var(--sans);color:#5b616e}}
+@media print{html,body{background:#fff}.desk{padding:0}.sheet{width:auto;min-height:0;margin:0;padding:0;box-shadow:none}.toolbar{display:none}.stamp{position:fixed}}
+@media (max-width:760px){.sheet{padding:20px 16px;min-height:0}.parties,.totals-wrap{grid-template-columns:1fr}.letterhead{flex-direction:column}.doc-title{text-align:left}.items-scroll{overflow-x:auto}table.items{min-width:560px}}
+</style></head>
+<body class="{% if embed %}embed{% endif %}"><div class="desk">
+<div class="toolbar"><span style="color:#5b616e">{% block doclabel %}{% endblock %}</span><span style="display:flex;gap:8px">{% block toolbar_extra %}{% endblock %}<button onclick="print()">Print</button></span></div>
+<main class="sheet">{% block stamp %}{% endblock %}
+<header class="letterhead"><div class="co"><h1>{{ company.name }}</h1><p>{{ company.address }}</p><div class="ids">{% if company.tax_id %}Tax ID: <b>{{ company.tax_id }}</b><br>{% endif %}{% if company.email %}{{ company.email }}{% endif %}{% if company.phone %} · {{ company.phone }}{% endif %}</div></div>
+<div class="doc-title"><h2>{% block title_text %}{% endblock %}</h2><div class="no">{% block number %}{% endblock %}</div>{% block status %}{% endblock %}</div></header>
+{% block content %}{% endblock %}
+<footer class="foot"><span>{% block footnote %}This is a computer-generated document.{% endblock %}</span><span class="mono">{% block fingerprint %}{% endblock %}</span></footer>
+</main></div></body></html>

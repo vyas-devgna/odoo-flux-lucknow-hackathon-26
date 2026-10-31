@@ -5,7 +5,7 @@
 <p class="small mute">Headers: <code>name</code>, <code>email</code> (required), then optional <code>company</code>, <code>phone</code>, <code>address</code>, <code>tax_id</code>. Invalid rows are skipped and listed; the rest are imported together.</p>
 <div class="btns"><button class="btn primary">Import</button><a class="btn" href="{% url 'core:customers' %}">Cancel</a></div></form>
 <div class="stack">{% if report %}<div class="card"><header><h2>Result</h2></header><div class="kpis" style="margin:0;border:0;padding:0"><div class="kpi"><small>Created</small><b class="num">{{ report.created }}</b></div><div class="kpi"><small>Updated</small><b class="num">{{ report.updated }}</b></div><div class="kpi"><small>Rejected</small><b class="num">{{ report.n_errors }}</b></div></div>
-{% if report.errors %}<ul class="small" style="color:var(--bad);margin:16px 0 0;padding-left:18px">{% for e in report.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}</div>{% endif %}
-<div class="card"><h3>Example</h3><pre class="small" style="margin:10px 0 0;overflow:auto">name,email,company,phone
+{% if report.errors %}<ul class="small" style="color:var(--bad);margin:16px 0 0;padding-left:16px">{% for e in report.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}</div>{% endif %}
+<div class="card"><h3>Example</h3><pre class="small" style="margin:8px 0 0;overflow:auto">name,email,company,phone
 Asha Verma,asha@verma.test,Verma Foods,+91 98000 00001
 Ravi Nair,ravi@nair.test,Nair Labs,</pre></div></div></div>{% endblock %}

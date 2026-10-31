@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.db.models import Count, F, Q, Sum
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -224,7 +225,8 @@ def bulk_remind(request):
 @billing_required
 def invoice_print(request, pk):
     inv = get_object_or_404(Invoice.objects.select_related("subscription"), pk=pk)
-    return render(request, "billing/print.html", {"inv": inv, "lines": inv.lines.all(), "payments": inv.payments.filter(status="succeeded")})
+    return render(request, "documents/invoice.html", {"inv": inv, "lines": inv.lines.all(), "payments": inv.payments.filter(status="succeeded"), "embed": bool(request.GET.get("embed")),
+                                                      "pdf_url": reverse("billing:pdf", args=[inv.pk])})
 
 
 @billing_required

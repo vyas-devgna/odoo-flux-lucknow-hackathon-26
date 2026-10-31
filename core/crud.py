@@ -1,4 +1,6 @@
 """A tiny CRUD kit so catalogue screens stay declarative: list + search + pagination, create, edit, delete."""
+import re
+
 from django import forms
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -18,10 +20,11 @@ def paginate(request, qs, size=PAGE_SIZE):
 
 class Resource:
     def __init__(self, ns, slug, model, form, title, columns, search=(), write="admin", inline=None, queryset=None,
-                 empty="Nothing here yet.", filters=(), blurb="", sections=None):
+                 empty="Nothing here yet.", filters=(), blurb="", sections=None, help=()):
         self.ns, self.slug, self.model, self.form, self.title = ns, slug, model, form, title
         self.columns, self.search, self.inline, self.empty, self.filters, self.blurb = columns, search, inline, empty, filters, blurb
         self.sections = sections
+        self.help = help
         self.write_guard = admin_required if write == "admin" else cap_required(write)
         self.write = write
         self.queryset = queryset or (lambda: model.objects.all())
@@ -85,7 +88,7 @@ class Resource:
                 rest = [f for f in form if f.name not in used]
                 if rest:
                     sections.append(("Other", rest))
-            return render(request, "crud/form.html", {"res": self, "form": form, "formset": fs, "obj": obj, "sections": sections,
+            return render(request, "crud/form.html", {"res": self, "form": form, "formset": fs, "obj": obj, "sections": sections, "timeline": audit.timeline(obj) if obj else None,
                                                       "title": ("New " if creating else "Edit ") + self.model._meta.verbose_name})
         return self.write_guard(view)
 
@@ -120,8 +123,11 @@ class StyledFormMixin:
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        for f in self.fields.values():
+        for name, f in self.fields.items():
             w = f.widget
+            if re.search(r"(price|amount|cost|purchase)", name) and isinstance(f, forms.DecimalField):
+                w.attrs["data-money"] = "1"
+                w.attrs.setdefault("inputmode", "decimal")
             if f.label and not w.is_hidden:
                 w.attrs.setdefault("aria-label", str(f.label))
             if isinstance(w, forms.CheckboxInput):

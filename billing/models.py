@@ -103,6 +103,23 @@ class Invoice(models.Model):
     def is_locked(self):
         return self.finalized_at is not None
 
+    @property
+    def fingerprint(self):
+        """Short integrity code printed on the document: changes if any legally relevant figure or party changes."""
+        import hashlib
+        parts = [self.number, str(self.issue_date), self.bill_to_name, str(self.total), str(self.tax_total)] + [f"{l.description}|{l.quantity}|{l.amount}" for l in self.lines.all()]
+        return hashlib.sha256("\n".join(parts).encode()).hexdigest()[:16].upper()
+
+    @property
+    def tax_summary(self):
+        """Taxable value and tax per rate, for the legal tax breakdown on the document."""
+        rows = {}
+        for l in self.lines.all():
+            r = rows.setdefault(l.tax_rate, {"rate": l.tax_rate, "taxable": ZERO, "tax": ZERO, "name": l.tax_name})
+            r["taxable"] += l.amount
+            r["tax"] += l.tax_amount
+        return sorted(rows.values(), key=lambda r: r["rate"])
+
 
 class InvoiceLine(models.Model):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="lines")

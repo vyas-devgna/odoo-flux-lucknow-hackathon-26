@@ -184,7 +184,7 @@ class Hardening(Base):
     def test_security_headers(self):
         self.client.force_login(self.u["admin"])
         r = self.client.get(reverse("core:dashboard"))
-        self.assertEqual(r["X-Frame-Options"], "DENY")
+        self.assertEqual(r["X-Frame-Options"], "SAMEORIGIN")
         self.assertEqual(r["X-Content-Type-Options"], "nosniff")
 
     def test_unauthenticated_post_to_state_changing_urls_redirects_to_login(self):

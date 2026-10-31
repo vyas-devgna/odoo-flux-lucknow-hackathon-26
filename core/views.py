@@ -57,7 +57,8 @@ def dashboard(request):
     return render(request, "core/dashboard.html", {
         "s": s, "rng": rng, "ranges": reports.RANGES, "rate": rate, "overdue_pct": overdue_pct, "title": "Overview",
         "mrr_delta": cur["mrr"] - prev["mrr"],
-        "mrr_cfg": {"type": "line", "labels": [r["label"] for r in series], "datasets": [{"label": "MRR", "data": [float(r["closing"]) for r in series], "color": "accent", "fill": True}]},
+        "cash_cfg": {"type": "bar", "labels": [r["label"] for r in cash], "datasets": [{"label": "Invoiced", "data": [float(r["invoiced"]) for r in cash], "color": "c3"}, {"label": "Collected", "data": [float(r["collected"]) for r in cash], "color": "c1"}]},
+        "mrr_cfg": {"type": "line", "labels": [r["label"] for r in series], "datasets": [{"label": "MRR", "data": [float(r["closing"]) for r in series], "color": "c1", "fill": True}]},
         "feed": feed, "open_invoices": open_invoices, "cal": reports.billing_calendar(today), "renewals": renewals, "today": today, "tasks": my_tasks,
         "drafts": Invoice.objects.filter(state=Invoice.DRAFT).count(), "setup": setup, "empty": empty,
         "due_now": Subscription.objects.filter(state="active", next_invoice_date__lte=today).count(),
@@ -155,9 +156,7 @@ def customer_import(request):
     return render(request, "core/customer_import.html", {"report": report, "title": "Import customers"})
 
 
-@any_ops
-def customer_statement(request, pk):
-    c = get_object_or_404(Customer, pk=pk)
+def statement_ctx(request, c):
     invs = list(c.invoices.exclude(state__in=[Invoice.DRAFT, Invoice.CANCELLED]).order_by("issue_date", "id").prefetch_related("payments"))
     rows = []
     for i in invs:
@@ -173,7 +172,14 @@ def customer_statement(request, pk):
     for r in rows:
         run += (r["debit"] or 0) - (r["credit"] or 0)
         r["bal"] = run
-    return render(request, "core/statement.html", {"c": c, "rows": rows, "balance": run, "today": timezone.localdate(), "title": f"Statement · {c}"})
+    aging, _ = reports.aging(reports.Filters(customer=c.pk))
+    return {"c": c, "rows": rows, "balance": run, "today": timezone.localdate(), "title": f"Statement · {c}", "embed": bool(request.GET.get("embed")),
+            "charged": sum((r["debit"] or 0) for r in rows), "settled": sum((r["credit"] or 0) for r in rows), "aging": aging if run > 0 else []}
+
+
+@any_ops
+def customer_statement(request, pk):
+    return render(request, "documents/statement.html", statement_ctx(request, get_object_or_404(Customer, pk=pk)))
 
 
 # ---- search / export / health ----

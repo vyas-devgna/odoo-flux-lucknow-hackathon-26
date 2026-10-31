@@ -1,0 +1,32 @@
+{% extends 'documents/base.html' %}{% load ui %}
+{% block doctitle %}{{ sub.number }}{% endblock %}{% block doclabel %}{{ sub.number }}{% endblock %}
+{% block stamp %}{% if sub.state == 'draft' %}<div class="stamp">DRAFT</div>{% elif sub.state == 'cancelled' %}<div class="stamp cancelled">VOID</div>{% endif %}{% endblock %}
+{% block title_text %}{% if sub.state == 'draft' or sub.state == 'quotation' or sub.state == 'cancelled' %}Quotation{% elif sub.state == 'confirmed' %}Order confirmation{% else %}Subscription agreement{% endif %}{% endblock %}
+{% block number %}{{ sub.number }}{% if sub.revision > 1 %} · Rev {{ sub.revision }}{% endif %}{% endblock %}
+{% block status %}<span class="status">{{ sub.get_state_display }}</span>{% endblock %}
+{% block content %}
+<section class="parties">
+  <div class="box"><h3>Prepared for</h3><div class="name">{{ sub.customer.display_name }}</div><p>{{ sub.customer.address }}</p><p>{{ sub.customer.email }}</p>{% if sub.customer.tax_id %}<p>Tax ID: <b>{{ sub.customer.tax_id }}</b></p>{% endif %}</div>
+  <div class="box"><h3>{% if sub.state == 'draft' or sub.state == 'quotation' or sub.state == 'cancelled' %}Quotation{% elif sub.state == 'confirmed' %}Order{% else %}Agreement{% endif %} details</h3><table class="kv">
+    <tr><td>Reference</td><td>{{ sub.number }}</td></tr><tr><td>Date</td><td>{{ sub.created_at|date:"d M Y" }}</td></tr>
+    {% if sub.state == 'draft' or sub.state == 'quotation' %}<tr><td>Valid until</td><td>{{ sub.quote_valid_until|date:"d M Y" }}</td></tr>{% endif %}
+    <tr><td>Plan</td><td>{{ sub.plan.name }}</td></tr><tr><td>Billing</td><td>{{ sub.plan.get_interval_display }}</td></tr>
+    <tr><td>Start date</td><td>{{ sub.start_date|date:"d M Y" }}</td></tr>{% if sub.expiry_date %}<tr><td>Term ends</td><td>{{ sub.expiry_date|date:"d M Y" }}</td></tr>{% endif %}
+    <tr><td>Payment terms</td><td>{{ sub.get_payment_terms_display }}</td></tr>{% if sub.salesperson %}<tr><td>Prepared by</td><td>{{ sub.salesperson }}</td></tr>{% endif %}
+  </table></div>
+</section>
+<div class="items-scroll"><table class="items"><thead><tr><th>#</th><th>Description</th><th class="r">Qty</th><th class="r">Unit price</th><th class="r">Amount</th><th class="r">Tax %</th><th class="r">Tax</th></tr></thead><tbody>
+{% for l in lines %}<tr><td class="n">{{ forloop.counter }}</td><td>{{ l.description }}{% if not l.recurring %} <i>(one-time)</i>{% endif %}</td><td class="r">{{ l.quantity }}</td><td class="r">{{ l.unit_price|money }}</td><td class="r">{{ l.net_amount|money }}</td><td class="r">{% if l.tax_rate %}{{ l.tax_rate|floatformat:"-2" }}%{% if l.inclusive %} incl.{% endif %}{% else %}–{% endif %}</td><td class="r">{{ l.tax_amount|money }}</td></tr>{% endfor %}</tbody></table></div>
+<div class="totals-wrap"><div class="section" style="margin-top:0"><h3>Commercial terms</h3><ol>
+  <li>Charges recur {{ sub.plan.get_interval_display|lower }} from {{ sub.start_date|date:"d M Y" }} until cancelled or until the term ends{% if sub.expiry_date %} on {{ sub.expiry_date|date:"d M Y" }}{% endif %}.</li>
+  <li>{{ sub.get_renewal_policy_display }}.{% if sub.plan.renewal_notice_days %} Notice of renewal is sent {{ sub.plan.renewal_notice_days }} days before the term ends.{% endif %}</li>
+  <li>Cancellation takes effect {{ sub.plan.get_cancel_policy_display|lower }}.{% if sub.plan.min_duration_periods %} Minimum commitment: {{ sub.plan.min_duration_periods }} billing period{{ sub.plan.min_duration_periods|pluralize }}.{% endif %}</li>
+  <li>Eligible discounts are applied automatically on each invoice. Taxes are as shown and may change with the law.</li></ol></div>
+  <table class="sum"><tr><td>Subtotal</td><td>{{ subtotal|money }}</td></tr><tr><td>Tax</td><td>{{ taxtotal|money }}</td></tr><tr class="grand"><td>Per {{ sub.plan.interval }} period</td><td>{{ subtotal|add:taxtotal|money }}</td></tr></table></div>
+<p class="words"><b>Amount in words:</b> {{ subtotal|add:taxtotal|in_words }} per billing period.</p>
+{% if company.invoice_terms %}<section class="section"><h3>General terms and conditions</h3><p>{{ company.invoice_terms }}</p></section>{% endif %}
+{% if acceptance %}<div class="accepted"><b>Accepted electronically.</b> By {{ acceptance.signed_name|default:acceptance.accepted_by|default:"the customer" }} on {{ acceptance.at|date:"d M Y, H:i" }}{% if acceptance.ip %} from {{ acceptance.ip }}{% endif %} (quotation revision {{ acceptance.revision }}, agreed total {{ acceptance.total_snapshot|money }} per period).<br><span style="color:#5b616e">{{ acceptance.terms_snapshot }}</span></div>
+{% elif sub.state == 'draft' or sub.state == 'quotation' %}<div class="sign"><div><b>Accepted for {{ sub.customer }}</b>Name, signature and date</div><div style="text-align:right"><b>For {{ company.name }}</b>Authorised signatory</div></div>
+<p class="section" style="color:#5b616e;font-size:11px">This quotation is valid until {{ sub.quote_valid_until|date:"d M Y" }}. Signing or accepting it online forms a binding agreement on the terms above.</p>{% endif %}
+{% endblock %}
+{% block fingerprint %}Ref {{ sub.number }}{% if sub.revision > 1 %} / rev {{ sub.revision }}{% endif %}{% endblock %}

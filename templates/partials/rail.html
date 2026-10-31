@@ -1,0 +1,4 @@
+{% load ui %}<aside class="rail" aria-label="Help and history">
+{% if rail_help %}<div class="card"><header><h2>{{ rail_title|default:"Good to know" }}</h2></header><ul class="tip-list">{% for h in rail_help %}<li>{{ h }}</li>{% endfor %}</ul></div>{% endif %}
+{% if timeline %}<div class="card"><header><h2>Recent changes</h2></header><div class="timeline">{% for e in timeline %}<div class="ev"><i></i><div><b>{{ e.action }}</b><span>{{ e.actor_label }} · {{ e.at|date:"d M H:i" }}{% if e.detail %} · {{ e.detail }}{% endif %}</span></div></div>{% endfor %}</div></div>{% endif %}
+</aside>

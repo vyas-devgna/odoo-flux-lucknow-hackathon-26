@@ -75,7 +75,7 @@ def team_form(request, pk=None):
         audit.log(request.user, "team.save", saved, f"role {saved.role}, active {saved.is_active}")
         messages.success(request, "Team member saved.")
         return redirect("accounts:team")
-    return render(request, "accounts/team_form.html", {"form": form, "member": member, "title": "Team member"})
+    return render(request, "accounts/team_form.html", {"form": form, "member": member, "title": "Team member", "help": ["Admins can do everything. Staff get exactly the capabilities ticked here.", "Sales: customers, quotations, contract changes. Billing: invoices, credit notes, billing runs.", "Finance: record payments and refunds, reports. Catalogue: products, plans, taxes, templates.", "Suspending an account signs the person out immediately."]})
 
 
 from django.contrib.auth.decorators import login_required

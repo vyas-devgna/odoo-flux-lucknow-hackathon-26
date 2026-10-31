@@ -118,6 +118,7 @@ COMPANY_NAME = "Brightloop Studio"
 SITE_URL = env("SITE_URL", "http://localhost:8765").rstrip("/")
 CURRENCY_SYMBOL = "₹"
 
+X_FRAME_OPTIONS = "SAMEORIGIN"  # the document viewer frames our own pages; other sites still cannot frame us
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_AGE = 60 * 60 * 12
 CSRF_TRUSTED_ORIGINS = [o for o in env("DJANGO_CSRF_TRUSTED_ORIGINS").split(",") if o]
