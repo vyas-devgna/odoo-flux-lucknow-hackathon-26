@@ -1,5 +1,6 @@
 {% extends 'base.html' %}{% load ui %}{% block heading %}<h1>Invoices</h1><p>Generated from subscriptions. Confirm, send, print or cancel.</p>{% endblock %}
 {% block actions %}<div class="btns">{% if drafts %}<form method="post" action="{% url 'billing:bulk_confirm' %}" data-confirm="Confirm all {{ drafts }} draft invoices?">{% csrf_token %}<button class="btn">{% icon 'check' %}Confirm {{ drafts }} drafts</button></form>{% endif %}
+{% if status == 'overdue' %}<form method="post" action="{% url 'billing:bulk_remind' %}" data-confirm="Email reminders for overdue invoices not chased recently?">{% csrf_token %}<button class="btn lime">{% icon 'mail' %}Remind overdue</button></form>{% endif %}
 <a class="btn" href="?{% qs export='csv' %}">{% icon 'download' %}CSV</a><a class="btn primary" href="{% url 'billing:runs' %}">{% icon 'play' %}Run billing</a></div>{% endblock %}
 {% block content %}
 <div class="filters"><div class="chips"><a class="chip {% if not status %}on{% endif %}" href="?{% qs status='' page='' %}">All</a>{% for k, l in filters %}<a class="chip {% if status == k %}on{% endif %}" href="?{% qs status=k page='' %}">{{ l }}</a>{% endfor %}</div></div>

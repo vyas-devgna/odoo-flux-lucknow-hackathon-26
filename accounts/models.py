@@ -2,6 +2,7 @@ from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.db import models
 from django.db.models.functions import Lower
+from django.utils import timezone
 
 
 class UserManager(BaseUserManager):
@@ -77,3 +78,21 @@ class Customer(models.Model):
     @property
     def display_name(self):
         return f"{self.name} · {self.company}" if self.company else self.name
+
+
+class LoginAttempt(models.Model):
+    """Failed sign-ins, used to throttle guessing per email and per IP."""
+
+    email = models.CharField(max_length=254, db_index=True)
+    ip = models.GenericIPAddressField(null=True, blank=True, db_index=True)
+    at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    LIMIT, WINDOW_MIN = 5, 15
+
+    @classmethod
+    def blocked(cls, email, ip):
+        from datetime import timedelta
+        from django.db.models import Q
+        since = timezone.now() - timedelta(minutes=cls.WINDOW_MIN)
+        recent = cls.objects.filter(at__gte=since)
+        return (recent.filter(email=email).count() >= cls.LIMIT) or (recent.filter(ip=ip).count() >= cls.LIMIT * 4)

@@ -30,6 +30,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -57,7 +58,8 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {"default": {
     "ENGINE": "django.db.backends.sqlite3",
     "NAME": env("DJANGO_DB", str(BASE_DIR / "db.sqlite3")),
-    "OPTIONS": {"timeout": 20, "transaction_mode": "IMMEDIATE"},
+    "OPTIONS": {"timeout": 20, "transaction_mode": "IMMEDIATE",
+                "init_command": "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;"},
 }}
 
 AUTH_USER_MODEL = "accounts.User"
@@ -93,5 +95,22 @@ COMPANY_NAME = "Brightloop"
 CURRENCY_SYMBOL = "₹"
 
 SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_AGE = 60 * 60 * 12
+CSRF_TRUSTED_ORIGINS = [o for o in env("DJANGO_CSRF_TRUSTED_ORIGINS").split(",") if o]
 if not DEBUG:
     SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = env("DJANGO_SSL_REDIRECT", "1") == "1"
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")  # behind a TLS-terminating proxy
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "same-origin"
+    STORAGES = {"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+                "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
+
+LOGGING = {
+    "version": 1, "disable_existing_loggers": False,
+    "formatters": {"std": {"format": "%(asctime)s %(levelname)s %(name)s %(message)s"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "std"}},
+    "root": {"handlers": ["console"], "level": env("LOG_LEVEL", "INFO")},
+    "loggers": {"django.request": {"level": "ERROR"}},
+}

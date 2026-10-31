@@ -126,6 +126,8 @@ def run_billing(as_of=None, trigger="scheduler"):
             sub.state, sub.closed_at, sub.next_invoice_date = Subscription.CLOSED, timezone.now(), None
             sub.save(update_fields=["state", "closed_at", "next_invoice_date"])
             run.closed += 1
+    from core import audit
+    audit.log(None, "billing.run", detail=f"{trigger}: created {run.created}, skipped {run.skipped}, failed {run.failed}, closed {run.closed}")
     run.errors = "\n".join(errors)[:5000]
     run.finished_at = timezone.now()
     run.save()
@@ -198,8 +200,64 @@ def send_invoice(inv, request=None):
     if request is not None:
         from django.urls import reverse
         link = f"\nView and print it online: {request.build_absolute_uri(reverse('core:portal_invoice', args=[inv.pk]))}\n"
+    from core.models import CompanySettings
+    co = CompanySettings.get()
+    pay = f"\nHow to pay:\n{co.bank_details}\n" if co.bank_details else ""
     body = (f"Hello {inv.bill_to_name},\n\nInvoice {inv.number} for {inv.period_start:%d %b %Y} – {inv.period_end:%d %b %Y} "
-            f"is ready.\nTotal: {settings.CURRENCY_SYMBOL}{inv.total}   Due: {inv.due_date:%d %b %Y}\n{link}\nThank you,\n{settings.COMPANY_NAME}")
-    EmailMessage(f"Invoice {inv.number} from {settings.COMPANY_NAME}", body, to=[inv.bill_to_email]).send(fail_silently=False)
+            f"is ready.\nTotal: {settings.CURRENCY_SYMBOL}{inv.total}   Due: {inv.due_date:%d %b %Y}\n{link}{pay}\nThank you,\n{co.name}")
+    EmailMessage(f"Invoice {inv.number} from {co.name}", body, to=[inv.bill_to_email], reply_to=[co.email] if co.email else None).send(fail_silently=False)
     inv.sent_at = timezone.now()
     inv.save(update_fields=["sent_at"])
+
+
+# ---------- collections ----------
+def send_reminder(inv, user=None):
+    """Dunning email for an overdue invoice. Increments the counter only if the mail was accepted."""
+    if not inv.is_overdue:
+        raise BillingError("Only overdue invoices can be chased.")
+    from core import audit
+    from core.models import CompanySettings
+    co = CompanySettings.get()
+    pay = f"\nHow to pay:\n{co.bank_details}\n" if co.bank_details else ""
+    body = (f"Hello {inv.bill_to_name},\n\nInvoice {inv.number} was due on {inv.due_date:%d %b %Y} and {settings.CURRENCY_SYMBOL}{inv.balance} "
+            f"is still outstanding ({inv.days_overdue} days overdue).\nIf you have already paid, please ignore this note.\n{pay}\nThank you,\n{co.name}")
+    EmailMessage(f"Reminder: invoice {inv.number} is overdue", body, to=[inv.bill_to_email],
+                 reply_to=[co.email] if co.email else None).send(fail_silently=False)
+    inv.reminder_count += 1
+    inv.last_reminded_at = timezone.now()
+    inv.save(update_fields=["reminder_count", "last_reminded_at"])
+    audit.log(user, "invoice.remind", inv, f"reminder #{inv.reminder_count}")
+
+
+def send_due_reminders(as_of=None):
+    """Chase overdue invoices not reminded within the configured repeat window; notify customers of upcoming expiry once."""
+    from datetime import timedelta
+    from core import audit
+    from core.models import CompanySettings
+    co = CompanySettings.get()
+    now = timezone.now()
+    today = as_of or timezone.localdate()
+    sent = failed = 0
+    overdue = Invoice.objects.filter(state=Invoice.CONFIRMED, due_date__lt=today, amount_paid__lt=F("total"))
+    for inv in overdue.filter(Q(last_reminded_at__isnull=True) | Q(last_reminded_at__lt=now - timedelta(days=co.reminder_repeat_days))):
+        try:
+            send_reminder(inv)
+            sent += 1
+        except Exception:
+            failed += 1
+    notices = 0
+    horizon = today + timedelta(days=co.reminder_days_before_renewal)
+    for s in Subscription.objects.filter(state=Subscription.ACTIVE, expiry_date__gte=today, expiry_date__lte=horizon,
+                                         renewal_notice_sent_at__isnull=True).select_related("customer", "plan"):
+        try:
+            EmailMessage(f"Your subscription {s.number} renews soon",
+                         f"Hello {s.customer.name},\n\nYour {s.plan.name} subscription {s.number} expires on {s.expiry_date:%d %b %Y}. "
+                         f"{'Sign in to your portal to renew it.' if s.plan.allow_renew else 'Please contact us to arrange the next term.'}\n\nThank you,\n{co.name}",
+                         to=[s.customer.email]).send(fail_silently=False)
+            s.renewal_notice_sent_at = now
+            s.save(update_fields=["renewal_notice_sent_at"])
+            notices += 1
+        except Exception:
+            failed += 1
+    audit.log(None, "billing.reminders", detail=f"{sent} overdue reminders, {notices} renewal notices, {failed} failed")
+    return sent, notices, failed

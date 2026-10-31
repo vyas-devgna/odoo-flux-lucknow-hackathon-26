@@ -1,7 +1,7 @@
 {% extends 'base.html' %}{% load ui %}
 {% block heading %}<h1>{{ sub.number }} {% badge sub.state %}</h1><p>{{ sub.customer }} · {{ sub.plan }}</p>{% endblock %}
 {% block actions %}<div class="btns">
-{% if sub.is_editable %}<a class="btn" href="{% url 'subscriptions:edit' sub.pk %}">Edit</a>{% endif %}
+{% if sub.can_edit %}<a class="btn" href="{% url 'subscriptions:edit' sub.pk %}">{% if sub.is_editable %}Edit{% else %}Change seats / terms{% endif %}</a>{% endif %}
 {% include 'subscriptions/_actions.html' %}</div>{% endblock %}
 {% block content %}
 <div class="dash"><div class="stack">

@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core import audit
 from core.crud import paginate
 from core.permissions import internal_required
 
@@ -72,15 +73,22 @@ def invoice_action(request, pk, action):
     try:
         if action == "confirm":
             services.confirm_invoice(inv)
+            audit.log(request.user, "invoice.confirm", inv)
             messages.success(request, f"{inv.number} confirmed.")
         elif action == "cancel":
             services.cancel_invoice(inv)
+            audit.log(request.user, "invoice.cancel", inv)
             messages.success(request, f"{inv.number} cancelled.")
         elif action == "send":
             services.send_invoice(inv, request)
+            audit.log(request.user, "invoice.send", inv, inv.bill_to_email)
             messages.success(request, f"{inv.number} emailed to {inv.bill_to_email}.")
+        elif action == "remind":
+            services.send_reminder(inv, request.user)
+            messages.success(request, f"Reminder sent to {inv.bill_to_email}.")
         elif action == "replace":
             new = services.replace_invoice(inv)
+            audit.log(request.user, "invoice.replace", inv, f"replaced by {new.number}")
             messages.success(request, f"Replacement {new.number} created.")
             return redirect("billing:detail", pk=new.pk)
         elif action == "pay":
@@ -88,6 +96,7 @@ def invoice_action(request, pk, action):
             if form.is_valid():
                 d = form.cleaned_data
                 services.record_payment(inv, amount=d["amount"], method=d["method"], date=d["date"], note=d["note"], user=request.user)
+                audit.log(request.user, "payment.record", inv, f"{d['amount']} via {d['method']}")
                 messages.success(request, "Payment recorded.")
             else:
                 messages.error(request, "; ".join(f"{k}: {' '.join(v)}" for k, v in form.errors.items()))
@@ -105,7 +114,16 @@ def bulk_confirm(request):
     for inv in Invoice.objects.filter(state=Invoice.DRAFT):
         services.confirm_invoice(inv)
         n += 1
+    audit.log(request.user, "invoice.confirm_bulk", detail=f"{n} drafts")
     messages.success(request, f"{n} draft invoices confirmed.")
+    return redirect("billing:list")
+
+
+@internal_required
+@require_POST
+def bulk_remind(request):
+    sent, notices, failed = services.send_due_reminders()
+    messages.success(request, f"{sent} overdue reminder(s) and {notices} renewal notice(s) sent" + (f"; {failed} failed." if failed else "."))
     return redirect("billing:list")
 
 
@@ -135,6 +153,7 @@ def payment_list(request):
 def billing_runs(request):
     if request.method == "POST":
         r = services.run_billing(trigger=f"manual:{request.user.email}")
+        audit.log(request.user, "billing.run", detail=f"created {r.created}, skipped {r.skipped}, failed {r.failed}")
         messages.success(request, f"Billing run complete: {r.created} invoice(s) created, {r.skipped} already billed, {r.failed} failed.")
         return redirect("billing:runs")
     from subscriptions.models import Subscription

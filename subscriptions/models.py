@@ -46,6 +46,7 @@ class Subscription(models.Model):
     periods_billed = models.PositiveIntegerField(default=0, editable=False)
     next_invoice_date = models.DateField(null=True, blank=True, db_index=True, editable=False)
     renewed_from = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="renewals")
+    renewal_notice_sent_at = models.DateTimeField(null=True, blank=True, editable=False)
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -114,6 +115,10 @@ class Subscription(models.Model):
     def portal_buttons(self):
         labels = {"confirm": "Accept quotation", "pause": "Pause", "resume": "Resume", "renew": "Renew", "close": "Cancel subscription"}
         return [(a, labels[a]) for a in labels if self.can(a) and (a != "confirm" or self.state == self.QUOTATION)]
+
+    @property
+    def can_edit(self):
+        return self.state != self.CLOSED
 
     @property
     def can_addons(self):

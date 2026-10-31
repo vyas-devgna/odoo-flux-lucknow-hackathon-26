@@ -31,6 +31,11 @@ class Command(BaseCommand):
             self.stdout.write("Subscriptions already exist; skipping demo seed.")
             return
         today = timezone.localdate()
+        from core.models import CompanySettings
+        co = CompanySettings.get()
+        co.name, co.address, co.tax_id, co.email = "Brightloop Software", "21 Hazratganj, Lucknow 226001", "09ABCDE1234F1Z5", "billing@brightloop.test"
+        co.bank_details = "Brightloop Software · A/C 1234567890 · IFSC HDFC0000123 · UPI brightloop@hdfc"
+        co.save()
         admin = User.objects.create_user("admin@brightloop.test", PASSWORDS["admin@brightloop.test"], name="Aarav Admin", role="admin", is_staff=True, is_superuser=True)
         User.objects.create_user("staff@brightloop.test", PASSWORDS["staff@brightloop.test"], name="Sana Sales", role="staff")
         gst, _ = Tax.objects.get_or_create(name="GST", defaults=dict(rate=18, is_default=True))

@@ -128,3 +128,5 @@ textarea.input{height:auto;padding:10px 14px;resize:vertical}select.input.multi{
 .field input[type=checkbox]:checked{background:var(--ok)}.field input[type=checkbox]:checked::after{left:21px}
 .field select[multiple]{height:auto;padding:8px}
 .search svg{width:17px;height:17px;flex:none;color:var(--mute)}
+.brand{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.nav{min-height:0;flex:1}.side .me a.who{color:inherit}

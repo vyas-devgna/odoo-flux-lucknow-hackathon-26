@@ -34,6 +34,8 @@ class Invoice(models.Model):
     discount_label = models.CharField(max_length=160, blank=True)
     replaces = models.OneToOneField("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="replacement")
     sent_at = models.DateTimeField(null=True, blank=True)
+    reminder_count = models.PositiveIntegerField(default=0)
+    last_reminded_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

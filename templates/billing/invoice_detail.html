@@ -3,6 +3,7 @@
 {% block actions %}<div class="btns">
 {% if inv.state == 'draft' %}<form method="post" action="{% url 'billing:action' inv.pk 'confirm' %}">{% csrf_token %}<button class="btn primary">{% icon 'check' %}Confirm</button></form>{% endif %}
 {% if inv.state != 'cancelled' %}<form method="post" action="{% url 'billing:action' inv.pk 'send' %}">{% csrf_token %}<button class="btn">{% icon 'mail' %}{% if inv.sent_at %}Resend{% else %}Send{% endif %}</button></form>{% endif %}
+{% if inv.is_overdue %}<form method="post" action="{% url 'billing:action' inv.pk 'remind' %}">{% csrf_token %}<button class="btn lime">Send reminder{% if inv.reminder_count %} ({{ inv.reminder_count }}){% endif %}</button></form>{% endif %}
 <a class="btn" href="{% url 'billing:print' inv.pk %}" target="_blank">{% icon 'print' %}Print</a>
 {% if inv.state == 'draft' or inv.state == 'confirmed' and not payments %}<form method="post" action="{% url 'billing:action' inv.pk 'cancel' %}" data-confirm="Cancel {{ inv.number }}?">{% csrf_token %}<button class="btn danger">Cancel</button></form>{% endif %}
 {% if inv.state == 'cancelled' and not inv.replacement %}<form method="post" action="{% url 'billing:action' inv.pk 'replace' %}">{% csrf_token %}<button class="btn">Create replacement</button></form>{% endif %}</div>{% endblock %}

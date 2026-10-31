@@ -1,0 +1,3 @@
+{% extends 'base.html' %}{% block heading %}<h1>Billing details</h1><p>Used on your future invoices. Past invoices keep the details they were issued with.</p>{% endblock %}
+{% block content %}<form method="post" class="card" style="max-width:720px">{% csrf_token %}<div class="form">{{ form.non_field_errors }}{% for field in form %}<div class="{% if field.name == 'address' %}full{% endif %}">{% include 'accounts/_field.html' %}</div>{% endfor %}</div>
+<div class="btns" style="margin-top:20px"><button class="btn primary">Save</button><a class="btn" href="{% url 'accounts:password_change' %}">Change password</a></div></form>{% endblock %}

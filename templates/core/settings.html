@@ -1,0 +1,4 @@
+{% extends 'base.html' %}{% block heading %}<h1>Settings</h1><p>Shown on invoices and customer emails.</p>{% endblock %}
+{% block content %}<form method="post" class="card" style="max-width:820px">{% csrf_token %}<div class="form">{{ form.non_field_errors }}
+{% for field in form %}<div class="{% if field.name in 'address bank_details invoice_footer' %}full{% endif %}">{% include 'accounts/_field.html' %}</div>{% endfor %}</div>
+<div class="btns" style="margin-top:20px"><button class="btn primary">Save settings</button></div></form>{% endblock %}

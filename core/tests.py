@@ -212,3 +212,82 @@ class SmokeTests(TestCase):
         self.client.force_login(User.objects.get(email="maya@acme.test"))
         for u in (reverse("core:portal"), reverse("core:portal_subscriptions"), reverse("core:portal_invoices")):
             self.assertEqual(self.client.get(u).status_code, 200, u)
+
+
+class OperationsTests(TestCase):
+    def setUp(self):
+        self.plan, self.cust = make_world()
+        self.today = timezone.localdate()
+        self.admin = User.objects.create_user("ad@x.test", PW, role="admin")
+
+    def test_login_throttle(self):
+        User.objects.create_user("t@x.test", PW)
+        for _ in range(5):
+            self.client.post(reverse("accounts:login"), {"username": "t@x.test", "password": "wrong"})
+        r = self.client.post(reverse("accounts:login"), {"username": "t@x.test", "password": PW})
+        self.assertContains(r, "Too many failed attempts")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_login_success_clears_failures(self):
+        User.objects.create_user("t@x.test", PW)
+        self.client.post(reverse("accounts:login"), {"username": "t@x.test", "password": "bad"})
+        r = self.client.post(reverse("accounts:login"), {"username": "T@X.test", "password": PW})
+        self.assertEqual(r.status_code, 302)
+
+    def test_audit_trail_and_admin_only_pages(self):
+        from core.models import AuditLog
+        active_sub(self.plan, self.cust, self.today)
+        billing.run_billing(self.today)
+        inv = Invoice.objects.get(); billing.confirm_invoice(inv)
+        self.client.force_login(self.admin)
+        self.client.post(reverse("billing:action", args=[inv.pk, "pay"]), {"amount": "100", "method": "upi", "date": self.today.isoformat(), "note": "x"})
+        self.assertTrue(AuditLog.objects.filter(action="payment.record", target_label=inv.number).exists())
+        self.assertTrue(AuditLog.objects.filter(action="billing.run").exists())
+        self.assertEqual(self.client.get(reverse("core:audit")).status_code, 200)
+        staff = User.objects.create_user("s@x.test", PW, role="staff")
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get(reverse("core:audit")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("core:settings")).status_code, 403)
+
+    def test_reminders_respect_window_and_expiry_notice_once(self):
+        s = active_sub(self.plan, self.cust, add_interval(self.today, "monthly", -2))
+        billing.run_billing(self.today)
+        for i in Invoice.objects.all():
+            billing.confirm_invoice(i)
+        Invoice.objects.update(due_date=self.today - timedelta(days=3))
+        Subscription.objects.filter(pk=s.pk).update(expiry_date=self.today + timedelta(days=5))
+        sent, notices, failed = billing.send_due_reminders()
+        self.assertEqual((sent, notices, failed), (3, 1, 0))
+        self.assertEqual(billing.send_due_reminders(), (0, 0, 0))  # within repeat window, notice already sent
+        self.assertEqual(Invoice.objects.filter(reminder_count=1).count(), 3)
+
+    def test_edit_live_subscription_keeps_schedule(self):
+        s = active_sub(self.plan, self.cust, self.today)
+        nxt = s.next_invoice_date
+        self.client.force_login(self.admin)
+        line = s.lines.get()
+        data = {"expiry_date": s.expiry_date.isoformat(), "payment_terms": "net30", "notes": "",
+                "lines-TOTAL_FORMS": "1", "lines-INITIAL_FORMS": "1", "lines-MIN_NUM_FORMS": "0", "lines-MAX_NUM_FORMS": "1000",
+                "lines-0-id": line.pk, "lines-0-subscription": s.pk, "lines-0-label": line.label, "lines-0-quantity": "7",
+                "lines-0-unit_price": "1000.00", "lines-0-tax": line.tax_id}
+        r = self.client.post(reverse("subscriptions:edit", args=[s.pk]), data)
+        self.assertEqual(r.status_code, 302, getattr(r, "context", None) and r.context["formset"].errors)
+        s.refresh_from_db(); line.refresh_from_db()
+        self.assertEqual((line.quantity, s.next_invoice_date, s.payment_terms), (7, nxt, "net30"))
+
+    def test_health_backup_and_exports(self):
+        self.assertEqual(self.client.get(reverse("core:healthz")).json(), {"status": "ok"})
+        self.client.force_login(self.admin)
+        for w in ("subscriptions", "payments", "customers"):
+            r = self.client.get(reverse("core:export", args=[w]))
+            self.assertEqual(r["Content-Type"], "text/csv")
+
+    def test_portal_profile_updates_future_invoices_only(self):
+        u = User.objects.create_user("c@x.test", PW, role="customer"); self.cust.user = u; self.cust.save()
+        active_sub(self.plan, self.cust, self.today); billing.run_billing(self.today)
+        old = Invoice.objects.get()
+        self.client.force_login(u)
+        self.client.post(reverse("core:portal_profile"), {"name": "A", "company": "New Co", "phone": "", "address": "Somewhere", "tax_id": ""})
+        old.refresh_from_db()
+        self.assertEqual(old.bill_to_address, "")
+        self.assertEqual(Customer.objects.get().address, "Somewhere")

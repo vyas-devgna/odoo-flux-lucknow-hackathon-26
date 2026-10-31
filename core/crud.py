@@ -6,6 +6,7 @@ from django.db.models import ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path, reverse
 
+from . import audit
 from .permissions import admin_required, internal_required
 
 PAGE_SIZE = 25
@@ -67,6 +68,7 @@ class Resource:
             fs = self.inline(request.POST or None, instance=obj or self.model()) if self.inline else None
             if request.method == "POST" and form.is_valid() and (fs is None or fs.is_valid()):
                 saved = form.save()
+                audit.log(request.user, f"{self.slug}.{'create' if creating else 'update'}", saved)
                 if fs is not None:
                     fs.instance = saved
                     fs.save()
@@ -82,7 +84,10 @@ class Resource:
             obj = get_object_or_404(self.queryset(), pk=pk)
             if request.method == "POST":
                 try:
+                    label = f"{self.slug}.delete"
+                    snapshot = type("Gone", (), {"pk": obj.pk, "__str__": lambda s, o=obj: str(o)})()
                     obj.delete()
+                    audit.log(request.user, label, snapshot)
                     messages.success(request, "Deleted.")
                 except ProtectedError:
                     messages.error(request, "It is in use elsewhere, so it can't be deleted. Mark it inactive instead.")

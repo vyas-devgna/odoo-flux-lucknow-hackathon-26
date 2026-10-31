@@ -42,6 +42,21 @@ class SubscriptionHeaderForm(StyledModelForm):
                    "quote_valid_until": forms.DateInput(), "notes": forms.Textarea(attrs={"rows": 2})}
 
 
+class LiveSubscriptionForm(StyledModelForm):
+    """Once a subscription is confirmed the start date and customer are fixed; the billing schedule depends on them."""
+
+    class Meta:
+        model = Subscription
+        fields = ["expiry_date", "payment_terms", "notes"]
+        widgets = {"expiry_date": forms.DateInput(), "notes": forms.Textarea(attrs={"rows": 2})}
+
+    def clean_expiry_date(self):
+        d = self.cleaned_data["expiry_date"]
+        if d and d <= self.instance.start_date:
+            raise forms.ValidationError("Expiry must be after the start date.")
+        return d
+
+
 class LineForm(StyledModelForm):
     class Meta:
         model = SubscriptionLine

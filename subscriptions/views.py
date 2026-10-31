@@ -6,11 +6,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from catalog.models import Plan, Product, ProductVariant
+from core import audit
 from core.crud import paginate
 from core.permissions import internal_required
 
 from . import services
-from .forms import LineFormSet, NewSubscriptionForm, SubscriptionHeaderForm
+from .forms import LineFormSet, LiveSubscriptionForm, NewSubscriptionForm, SubscriptionHeaderForm
 from .models import Subscription
 
 ACTIONS = {"send": services.send_quotation, "confirm": services.confirm, "activate": services.activate,
@@ -42,6 +43,7 @@ def subscription_new(request):
         sub = services.create_subscription(customer=d["customer"], plan=d["plan"], template=d["template"],
                                            start_date=d["start_date"], expiry_date=d["expiry_date"],
                                            payment_terms=d["payment_terms"], notes=d["notes"], user=request.user)
+        audit.log(request.user, "subscription.create", sub, f"{sub.customer} on {sub.plan.name}")
         messages.success(request, f"{sub.number} created as a draft. Review its lines, then send the quotation.")
         return redirect("subscriptions:detail", pk=sub.pk)
     plans = {p.pk: {"templates": list(p.templates.filter(active=True).values_list("pk", flat=True))} for p in Plan.objects.all()}
@@ -66,15 +68,16 @@ def subscription_detail(request, pk):
 @internal_required
 def subscription_edit(request, pk):
     sub = _get(pk)
-    if not sub.is_editable:
-        messages.error(request, "Lines can be edited only while a subscription is a draft or quotation.")
+    if not sub.can_edit:
+        messages.error(request, "A closed subscription can't be edited. Renew it instead.")
         return redirect("subscriptions:detail", pk=pk)
-    form = SubscriptionHeaderForm(request.POST or None, instance=sub)
+    form = (SubscriptionHeaderForm if sub.is_editable else LiveSubscriptionForm)(request.POST or None, instance=sub)
     fs = LineFormSet(request.POST or None, instance=sub)
     if request.method == "POST" and form.is_valid() and fs.is_valid():
         form.save()
         fs.save()
-        messages.success(request, "Saved.")
+        audit.log(request.user, "subscription.edit", sub, "lines/terms changed" + ("" if sub.is_editable else "; applies from next invoice"))
+        messages.success(request, "Saved." + ("" if sub.is_editable else " Changes apply from the next invoice."))
         return redirect("subscriptions:detail", pk=pk)
     prices = {p.pk: str(p.sales_price) for p in Product.objects.all()}
     variants = {v.pk: {"product": v.product_id, "extra": str(v.extra_price)} for v in
@@ -90,13 +93,16 @@ def subscription_action(request, pk, action):
     try:
         if action == "renew":
             new = services.renew(sub)
+            audit.log(request.user, "subscription.renew", sub, f"renewed as {new.number}")
             messages.success(request, f"Renewed as {new.number}, starting {new.start_date:%d %b %Y}.")
             return redirect("subscriptions:detail", pk=new.pk)
         if action in ("addon_on", "addon_off"):
             services.set_addon(sub, request.POST.get("product"), action == "addon_on")
+            audit.log(request.user, f"subscription.{action}", sub, f"product {request.POST.get('product')}")
             messages.success(request, "Add-on updated. It applies from the next invoice.")
         else:
             ACTIONS[action](sub)
+            audit.log(request.user, f"subscription.{action}", sub)
             messages.success(request, f"{sub.number}: {action} done.")
     except (services.TransitionError, KeyError) as e:
         messages.error(request, str(e) if isinstance(e, services.TransitionError) else "Unknown action.")

@@ -11,6 +11,18 @@ User = get_user_model()
 class LoginForm(AuthenticationForm):
     username = forms.EmailField(label="Email", widget=forms.EmailInput(attrs={"autofocus": True, "autocomplete": "email"}))
 
+    def clean(self):
+        from .models import LoginAttempt
+        email = (self.data.get("username") or "").strip().lower()
+        ip = self.request.META.get("REMOTE_ADDR") if self.request else None
+        if LoginAttempt.blocked(email, ip):
+            raise forms.ValidationError(f"Too many failed attempts. Try again in {LoginAttempt.WINDOW_MIN} minutes or reset your password.", code="throttled")
+        try:
+            return super().clean()
+        except forms.ValidationError:
+            LoginAttempt.objects.create(email=email, ip=ip)
+            raise
+
 
 class SignupForm(forms.Form):
     name = forms.CharField(max_length=120)

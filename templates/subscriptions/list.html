@@ -1,5 +1,5 @@
 {% extends 'base.html' %}{% load ui %}{% block heading %}<h1>Subscriptions</h1><p>{{ total }} on the books</p>{% endblock %}
-{% block actions %}<a class="btn primary" href="{% url 'subscriptions:new' %}">{% icon 'plus' %}New subscription</a>{% endblock %}
+{% block actions %}<a class="btn" href="{% url 'core:export' 'subscriptions' %}{% if state %}?state={{ state }}{% endif %}">{% icon 'download' %}CSV</a><a class="btn primary" href="{% url 'subscriptions:new' %}">{% icon 'plus' %}New subscription</a>{% endblock %}
 {% block content %}
 <div class="filters"><div class="chips"><a class="chip {% if not state %}on{% endif %}" href="?">All<em>{{ total }}</em></a>
 {% for k, l in states %}<a class="chip {% if state == k %}on{% endif %}" href="?{% qs state=k page='' %}">{{ l }}<em>{% for sk, n in counts.items %}{% if sk == k %}{{ n }}{% endif %}{% endfor %}</em></a>{% endfor %}</div></div>

@@ -14,6 +14,7 @@ from subscriptions import services
 from subscriptions.models import Subscription
 
 from . import reports
+from . import audit
 from .crud import paginate
 from .permissions import customer_required, internal_required
 
@@ -131,13 +132,16 @@ def portal_action(request, pk, action):
     try:
         if action == "renew":
             new = services.renew(sub)
+            audit.log(request.user, "portal.renew", sub, f"renewed as {new.number}")
             messages.success(request, f"Renewed. Your new term {new.number} starts {new.start_date:%d %b %Y}.")
             return redirect("core:portal_subscription", pk=new.pk)
         if action in ("addon_on", "addon_off"):
             services.set_addon(sub, request.POST.get("product"), action == "addon_on")
+            audit.log(request.user, f"portal.{action}", sub, f"product {request.POST.get('product')}")
             messages.success(request, "Add-on updated. It applies from your next invoice.")
         elif action in allowed:
             allowed[action](sub)
+            audit.log(request.user, f"portal.{action}", sub)
             messages.success(request, "Done.")
         else:
             messages.error(request, "That action isn't available.")
@@ -165,3 +169,109 @@ def portal_invoice(request, pk):
 def portal_invoice_print(request, pk):
     inv = get_object_or_404(_my_invoices(request), pk=pk)
     return render(request, "billing/print.html", {"inv": inv, "lines": inv.lines.all(), "payments": inv.payments.all()})
+
+
+# ---- company settings, audit trail, search, exports, health ----
+import csv
+
+from django import forms as djforms
+from django.db import connection
+from django.http import HttpResponse, JsonResponse
+
+from .crud import StyledModelForm
+from .models import AuditLog, CompanySettings
+from .permissions import admin_required
+
+
+class CompanyForm(StyledModelForm):
+    class Meta:
+        model = CompanySettings
+        exclude = []
+        widgets = {"address": djforms.Textarea(attrs={"rows": 3}), "bank_details": djforms.Textarea(attrs={"rows": 3})}
+
+
+@admin_required
+def company_settings(request):
+    form = CompanyForm(request.POST or None, instance=CompanySettings.get())
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        audit.log(request.user, "settings.update", detail="company settings")
+        messages.success(request, "Settings saved.")
+        return redirect("core:settings")
+    return render(request, "core/settings.html", {"form": form})
+
+
+@admin_required
+def audit_log(request):
+    qs = AuditLog.objects.select_related("actor")
+    q, action = request.GET.get("q", "").strip(), request.GET.get("action", "")
+    if q:
+        qs = qs.filter(Q(target_label__icontains=q) | Q(actor_label__icontains=q) | Q(detail__icontains=q))
+    if action:
+        qs = qs.filter(action__startswith=action)
+    groups = ["subscription", "invoice", "payment", "billing", "account", "team", "settings", "portal", "discounts", "plans", "products"]
+    return render(request, "core/audit.html", {"page": paginate(request, qs), "q": q, "action": action, "groups": groups})
+
+
+@internal_required
+def search(request):
+    q = request.GET.get("q", "").strip()
+    res = {}
+    if len(q) >= 2:
+        res["customers"] = Customer.objects.filter(Q(name__icontains=q) | Q(company__icontains=q) | Q(email__icontains=q))[:8]
+        res["subscriptions"] = Subscription.objects.filter(Q(number__icontains=q) | Q(customer__name__icontains=q) | Q(customer__company__icontains=q)).select_related("customer", "plan")[:8]
+        res["invoices"] = Invoice.objects.filter(Q(number__icontains=q) | Q(bill_to_name__icontains=q)).select_related("subscription")[:8]
+    return render(request, "core/search.html", {"q": q, "res": res, "any": any(res.values())})
+
+
+def _csv(name, header, rows):
+    resp = HttpResponse(content_type="text/csv")
+    resp["Content-Disposition"] = f'attachment; filename="{name}.csv"'
+    w = csv.writer(resp)
+    w.writerow(header)
+    for r in rows:
+        w.writerow(r)
+    return resp
+
+
+@internal_required
+def export(request, what):
+    from billing.models import Payment
+    if what == "subscriptions":
+        qs = Subscription.objects.select_related("customer", "plan")
+        if request.GET.get("state"):
+            qs = qs.filter(state=request.GET["state"])
+        return _csv("subscriptions", ["Number", "Customer", "Email", "Plan", "State", "Start", "Expiry", "Next invoice", "Monthly value"],
+                    ([s.number, s.customer, s.customer.email, s.plan.name, s.state, s.start_date, s.expiry_date, s.next_invoice_date, s.recurring_monthly]
+                     for s in qs.iterator()))
+    if what == "payments":
+        qs = Payment.objects.select_related("invoice")
+        return _csv("payments", ["Date", "Invoice", "Customer", "Method", "Amount", "Note"],
+                    ([p.date, p.invoice.number, p.invoice.bill_to_name, p.method, p.amount, p.note] for p in qs.iterator()))
+    if what == "customers":
+        return _csv("customers", ["Name", "Company", "Email", "Phone", "Tax ID"],
+                    ([c.name, c.company, c.email, c.phone, c.tax_id] for c in Customer.objects.order_by("name").iterator()))
+    return HttpResponse(status=404)
+
+
+def healthz(request):
+    try:
+        with connection.cursor() as c:
+            c.execute("select 1")
+        return JsonResponse({"status": "ok"})
+    except Exception:
+        return JsonResponse({"status": "db_error"}, status=503)
+
+
+@customer_required
+def portal_profile(request):
+    from accounts.forms import CustomerForm
+    c = _mine(request)
+    form = CustomerForm(request.POST or None, instance=c)
+    form.fields.pop("email")  # login email changes need verification; not self-service
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        audit.log(request.user, "portal.profile", c)
+        messages.success(request, "Billing details updated. They apply to your next invoice.")
+        return redirect("core:portal_profile")
+    return render(request, "portal/profile.html", {"form": form})
