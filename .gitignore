@@ -4,3 +4,8 @@
 .DS_Store
 node_modules/
 dist/
+.venv/
+__pycache__/
+*.py[cod]
+db.sqlite3
+db.sqlite3-*
