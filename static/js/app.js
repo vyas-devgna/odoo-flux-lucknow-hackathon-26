@@ -130,6 +130,8 @@ document.addEventListener('keydown', e => {
   else if (gPending && Date.now() - gPending < 1200 && GO[e.key]) { gPending = 0; go(GO[e.key]); }
 });
 
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $$('details[open]').forEach(d => { d.removeAttribute('open'); d.querySelector('summary')?.focus(); }); });
+
 /* ---------- init (runs on load and after every boosted navigation) */
 function init() { $$('.formset-row [id]:not([aria-label]):not([type=hidden])').forEach(i => { const l = i.closest('td')?.dataset.l; if (l) i.setAttribute('aria-label', l); }); $$('input[id$=-DELETE]:not([aria-label])').forEach(i => i.setAttribute('aria-label', 'Remove row')); flash(); counters(); initCharts(); document.body.classList.remove('open'); $$('input[autofocus]').forEach(i => i.focus()); }
 document.addEventListener('DOMContentLoaded', init);

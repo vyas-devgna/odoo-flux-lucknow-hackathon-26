@@ -87,7 +87,12 @@ def template_edit(request, pk):
 @admin_required
 def outbox(request):
     if request.method == "POST":
-        if request.POST.get("flush"):
+        if request.POST.get("test"):
+            import uuid
+            row = mail.queue_email(request.user.email, "Brightloop test email", "If you can read this, outgoing email works.", dedupe_key=f"test:{uuid.uuid4().hex}")
+            row.refresh_from_db()
+            messages.success(request, f"Test email sent to {request.user.email}." if row.status == "sent" else f"Test email queued but not delivered yet: {row.last_error or 'see the outbox below'}")
+        elif request.POST.get("flush"):
             sent, failed = mail.flush()
             messages.success(request, f"Delivered {sent}; {failed} still failing.")
         elif request.POST.get("retry"):

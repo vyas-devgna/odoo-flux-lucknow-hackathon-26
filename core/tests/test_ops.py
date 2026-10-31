@@ -152,3 +152,13 @@ class Commands(Base):
 
     def test_healthz(self):
         self.assertEqual(self.client.get(reverse("core:healthz")).json(), {"status": "ok"})
+
+
+class OutboxPage(Base):
+    def test_test_email_button_delivers_to_the_admin_and_is_admin_only(self):
+        self.client.force_login(self.u["admin"])
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("core:outbox"), {"test": "1"})
+        self.assertTrue(any(m.to == ["admin@x.test"] for m in mail.outbox))
+        self.client.force_login(self.u["sales"])
+        self.assertEqual(self.client.post(reverse("core:outbox"), {"test": "1"}).status_code, 403)
