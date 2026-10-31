@@ -232,3 +232,15 @@ class MrrInvariant(Base):
         sd, sy = make_active(d, c1, self.today), make_active(y, c2, self.today)
         self.assertAlmostEqual(float(sy.recurring_monthly), 12000 * 0.083333, places=1)
         self.assertEqual(sd.recurring_monthly, Decimal("304.38"))
+
+
+class RenewalQuote(Base):
+    def test_accepting_a_renewal_quotation_activates_it_even_on_manual_plans(self):
+        s = make_active(self.plan, self.cust, add_interval(self.today, "monthly", -11))
+        Subscription.objects.filter(pk=s.pk).update(expiry_date=self.today + timedelta(days=10))
+        q = subs.renew(Subscription.objects.get(pk=s.pk), accept=False)
+        subs.email_quotation(Subscription.objects.get(pk=q.pk), resend=True)
+        new = subs.accept(Subscription.objects.get(pk=q.pk), signed_name="Alex")
+        self.assertEqual((new.state, new.start_date), ("active", self.today + timedelta(days=11)))
+        from core import reports
+        self.assertEqual(reports.mrr_at(self.today), s.recurring_monthly)  # the renewal starts later; no double counting today

@@ -179,6 +179,12 @@ def subscription_action(request, pk, action):
             services.reject(sub, actor=request.user, reason=request.POST.get("reason", ""))
             audit.log(request.user, "subscription.reject", sub)
             messages.success(request, f"{sub.number} marked as rejected.")
+        elif action == "resend":
+            if sub.state != Subscription.QUOTATION:
+                raise services.TransitionError("Only a sent quotation can be re-emailed.")
+            services.email_quotation(sub, resend=True)
+            audit.log(request.user, "subscription.resend", sub)
+            messages.success(request, f"Quotation queued for {sub.customer.email}.")
         elif action == "revise":
             services.revise_quotation(sub, request.user)
             audit.log(request.user, "subscription.revise", sub)

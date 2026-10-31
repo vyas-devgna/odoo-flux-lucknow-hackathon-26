@@ -114,7 +114,7 @@ def send_quotation(sub, actor=None):
     email_quotation(sub)
 
 
-def email_quotation(sub):
+def email_quotation(sub, resend=False):
     co = CompanySettings.get()
     registered = bool(getattr(sub.customer, "user_id", None))
     link = settings.SITE_URL + (reverse("core:portal_subscription", args=[sub.pk]) if registered else reverse("accounts:signup"))
@@ -123,7 +123,7 @@ def email_quotation(sub):
             f"({sub.plan.get_interval_display().lower()} billing), valid until {sub.quote_valid_until:%d %b %Y}.\n\n{lines}\n\n"
             f"Total per period: {settings.CURRENCY_SYMBOL}{sub.total} (incl. tax)\n\nReview and accept it online: {link}\n"
             + ("" if registered else f"(Create your account with {sub.customer.email} to see it.)\n") + f"\nThank you,\n{co.name}")
-    return mail.queue_email(sub.customer.email, f"Quotation {sub.number} from {co.name}", body, dedupe_key=f"quote:{sub.pk}:{sub.revision}", related=sub)
+    return mail.queue_email(sub.customer.email, f"Quotation {sub.number} from {co.name}", body, dedupe_key=f"quote:{sub.pk}:{sub.revision}" + (f":{timezone.now().timestamp()}" if resend else ""), related=sub)
 
 
 def revise_quotation(sub, actor=None):
@@ -161,7 +161,9 @@ def accept(sub, *, actor=None, signed_name="", ip=None, how="Accepted online"):
             sib.state = Subscription.CANCELLED
             sib.save(update_fields=["state"])
             record_change(sib, "rejected", detail=f"superseded by {sub.number}")
-    if sub.plan.activation == Plan.ACT_ACCEPT:
+    if sub.renewed_from_id:  # an accepted renewal always continues the contract on its start date
+        activate_renewal(fresh(sub), sub.renewed_from, actor)
+    elif sub.plan.activation == Plan.ACT_ACCEPT:
         activate(fresh(sub), actor=actor)
     elif sub.plan.activation == Plan.ACT_PAYMENT:
         from billing import services as billing

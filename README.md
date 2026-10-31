@@ -58,7 +58,7 @@ Or keep one process alive: `manage.py run_scheduled --every 300`. See [docs/OPER
 ## Verify it
 
 ```sh
-.venv/bin/python manage.py test                           # 123 backend, security, billing, payments and report tests
+.venv/bin/python manage.py test                           # 125 backend, security, billing, payments and report tests
 DATABASE_URL=postgres://... .venv/bin/python manage.py test   # same suite on PostgreSQL (includes parallel-billing test)
 python e2e/journey.py                                     # real-browser 26-step acceptance journey + restart persistence + mobile/tablet overflow
 .venv/bin/python manage.py perf_check --cold              # page latency at the current dataset size

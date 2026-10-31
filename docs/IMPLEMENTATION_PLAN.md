@@ -8,7 +8,7 @@
 | M3 Money | Payment statuses and reconciliation, verified webhooks, PDF invoices, sandbox segregation | done |
 | M4 Operations | Email outbox, automation rules, tasks and notifications, staff capabilities, rate limits | done |
 | M5 Growth | Storefront and checkout, cohort/MRR/aging/breakdown reports with filters | done |
-| M6 Proof | Seed + bulk generator, 123 backend tests (SQLite and PostgreSQL), concurrency test, query budgets, Playwright journey, performance log | done |
+| M6 Proof | Seed + bulk generator, 125 backend tests (SQLite and PostgreSQL), concurrency test, query budgets, Playwright journey, performance log | done |
 
 ## Known limitations (deliberate)
 
