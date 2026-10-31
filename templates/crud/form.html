@@ -1,0 +1,13 @@
+{% extends 'base.html' %}{% load ui %}{% block heading %}<h1>{{ title }}</h1>{% endblock %}
+{% block content %}
+<form method="post" class="stack" style="max-width:920px">{% csrf_token %}
+<div class="card"><div class="form">{{ form.non_field_errors }}
+{% for field in form %}<div class="{% if field.name in 'notes address products' %}full{% endif %}">{% include 'accounts/_field.html' %}</div>{% endfor %}</div></div>
+{% if formset %}<div class="card flush"><header><h2>{% if res.slug == 'products' %}Variants{% else %}Lines{% endif %}</h2></header>
+{{ formset.management_form }}{{ formset.non_form_errors }}
+<div class="tw"><table><thead><tr>{% for f in formset.forms.0.visible_fields %}<th>{{ f.label }}</th>{% endfor %}</tr></thead><tbody id="rows">
+{% for f in formset %}<tr class="formset-row">{% for h in f.hidden_fields %}{{ h }}{% endfor %}{% for fld in f.visible_fields %}<td>{{ fld }}{{ fld.errors }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+<div style="padding:14px 22px 20px"><button type="button" class="btn sm" data-add-row="#rows" data-prefix="{{ formset.prefix }}">{% icon 'plus' %}Add row</button></div>
+<template id="empty-row"><tr class="formset-row">{% for h in formset.empty_form.hidden_fields %}{{ h }}{% endfor %}{% for fld in formset.empty_form.visible_fields %}<td>{{ fld }}</td>{% endfor %}</tr></template></div>{% endif %}
+<div class="btns"><button class="btn primary">Save</button><a class="btn" href="{{ res.url_list }}">Cancel</a>
+{% if obj %}<button class="btn danger" formaction="{% url res.ns|add:':'|add:res.slug|add:'_delete' obj.pk %}" formnovalidate onclick="return confirm('Delete this?')">Delete</button>{% endif %}</div></form>{% endblock %}

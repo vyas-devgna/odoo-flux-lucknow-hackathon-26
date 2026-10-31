@@ -27,6 +27,14 @@ class Resource:
     def url(self, name, *args):
         return reverse(f"{self.ns}:{self.slug}_{name}", args=args)
 
+    @property
+    def url_list(self):
+        return self.url("list")
+
+    @property
+    def url_new(self):
+        return self.url("new")
+
     def can_write(self, user):
         return user.is_admin_role if self.write == "admin" else user.is_internal
 

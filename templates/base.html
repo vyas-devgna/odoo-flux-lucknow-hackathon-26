@@ -1,0 +1,51 @@
+{% load static ui %}<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}{{ title|default:"Overview" }}{% endblock %} · {{ COMPANY }}</title>
+<link rel="stylesheet" href="{% static 'css/app.css' %}">
+<script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'light'</script>
+</head><body>
+<div class="shell">
+<aside class="side" id="side">
+  <div class="brand"><span class="logo"></span>{{ COMPANY }}</div>
+  {% with n=request.resolver_match.url_name ns=request.resolver_match.namespace %}
+  <nav class="nav">
+  {% if user.is_internal %}
+    <a href="{% url 'core:dashboard' %}" class="{% if n == 'dashboard' %}on{% endif %}">{% icon 'home' %}Overview</a>
+    <a href="{% url 'subscriptions:list' %}" class="{% if ns == 'subscriptions' %}on{% endif %}">{% icon 'repeat' %}Subscriptions</a>
+    <a href="{% url 'billing:list' %}" class="{% if n in 'list detail print' and ns == 'billing' %}on{% endif %}">{% icon 'file' %}Invoices</a>
+    <a href="{% url 'billing:payments' %}" class="{% if n == 'payments' %}on{% endif %}">{% icon 'card' %}Payments</a>
+    <a href="{% url 'core:customers' %}" class="{% if 'customer' in n %}on{% endif %}">{% icon 'users' %}Customers</a>
+    <a href="{% url 'core:reports' %}" class="{% if n == 'reports' %}on{% endif %}">{% icon 'chart' %}Reports</a>
+    <div class="grp">Catalogue</div>
+    <a href="{% url 'catalog:products_list' %}" class="{% if 'products' in n %}on{% endif %}">{% icon 'box' %}Products</a>
+    <a href="{% url 'catalog:plans_list' %}" class="{% if 'plans' in n %}on{% endif %}">{% icon 'layers' %}Plans</a>
+    <a href="{% url 'catalog:templates_list' %}" class="{% if 'templates' in n %}on{% endif %}">{% icon 'file' %}Templates</a>
+    <a href="{% url 'catalog:discounts_list' %}" class="{% if 'discounts' in n %}on{% endif %}">{% icon 'percent' %}Discounts</a>
+    <a href="{% url 'catalog:taxes_list' %}" class="{% if 'taxes' in n %}on{% endif %}">{% icon 'tag' %}Taxes</a>
+    <div class="grp">Operations</div>
+    <a href="{% url 'billing:runs' %}" class="{% if n == 'runs' %}on{% endif %}">{% icon 'clock' %}Billing runs</a>
+    {% if user.is_admin_role %}<a href="{% url 'accounts:team' %}" class="{% if 'team' in n %}on{% endif %}">{% icon 'shield' %}Team</a>{% endif %}
+  {% else %}
+    <a href="{% url 'core:portal' %}" class="{% if n == 'portal' %}on{% endif %}">{% icon 'home' %}Home</a>
+    <a href="{% url 'core:portal_subscriptions' %}" class="{% if 'portal_subscription' in n %}on{% endif %}">{% icon 'repeat' %}My subscriptions</a>
+    <a href="{% url 'core:portal_invoices' %}" class="{% if 'portal_invoice' in n %}on{% endif %}">{% icon 'file' %}My invoices</a>
+  {% endif %}
+  </nav>{% endwith %}
+  <div class="me"><span class="avatar">{{ user.name|default:user.email|initials }}</span>
+    <div class="who"><b>{{ user.name|default:user.email }}</b><span>{{ user.get_role_display }}</span></div>
+    <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button title="Sign out" aria-label="Sign out">{% icon 'out' %}</button></form></div>
+</aside>
+<div class="drawer-bg" onclick="document.body.classList.remove('open')"></div>
+<main class="main">
+  <div class="top">
+    <button class="icon-btn burger" onclick="document.body.classList.add('open')" aria-label="Menu">{% icon 'menu' %}</button>
+    <div class="grow">{% block heading %}<h1>{{ title }}</h1>{% endblock %}</div>
+    {% block actions %}{% endblock %}
+    <button class="icon-btn" id="theme" title="Toggle theme" aria-label="Toggle theme">{% icon 'moon' %}</button>
+  </div>
+  {% if messages %}<div class="msgs">{% for m in messages %}<div class="msg {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main></div>
+<script src="{% static 'js/app.js' %}"></script>{% block scripts %}{% endblock %}
+</body></html>

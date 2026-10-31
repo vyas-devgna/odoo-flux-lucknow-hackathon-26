@@ -1,0 +1,14 @@
+{% extends 'base.html' %}{% load ui %}
+{% block heading %}<h1>{{ title }}</h1>{% if res.blurb %}<p>{{ res.blurb }}</p>{% endif %}{% endblock %}
+{% block actions %}{% if can_write %}<a class="btn primary" href="{{ res.url_new }}">{% icon 'plus' %}New</a>{% endif %}{% endblock %}
+{% block content %}
+<form class="filters" method="get">
+  {% if res.search %}<div class="search">{% icon 'tag' %}<input name="q" value="{{ q }}" placeholder="Search {{ title|lower }}"></div>{% endif %}
+  {% for key, choices, val in filters %}<select class="input" name="{{ key }}" onchange="this.form.submit()"><option value="">All {{ key }}s</option>{% for v, l in choices %}<option value="{{ v }}" {% if v == val %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>{% endfor %}
+  {% if q %}<a class="btn sm" href="?">Clear</a>{% endif %}
+</form>
+<div class="card flush"><div class="tw"><table class="stack-table"><thead><tr>{% for h, s in res.columns %}<th>{{ h }}</th>{% endfor %}<th></th></tr></thead><tbody>
+{% for o in page %}<tr>{% for h, s in res.columns %}<td data-l="{{ h }}">{% if forloop.first %}<a class="link" href="{% if can_write %}{{ o.pk }}/{% else %}#{% endif %}">{{ o|cell:s }}</a>{% else %}{{ o|cell:s }}{% endif %}</td>{% endfor %}
+<td class="right">{% if can_write %}<a class="btn sm" href="{{ o.pk }}/">Edit</a>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="9"><div class="empty">{{ res.empty }}</div></td></tr>{% endfor %}</tbody></table></div>
+{% include 'partials/pager.html' %}</div>{% endblock %}

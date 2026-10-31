@@ -1,0 +1,8 @@
+{% autoescape off %}Hello,
+
+Use this link to choose a new Brightloop password. It expires in one hour:
+
+{{ protocol }}://{{ domain }}{% url 'accounts:reset_confirm' uidb64=uid token=token %}
+
+If you didn't ask for this, you can ignore this email.
+{% endautoescape %}

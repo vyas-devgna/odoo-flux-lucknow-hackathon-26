@@ -103,6 +103,22 @@ class Subscription(models.Model):
     def stage_index(self):
         return self.FLOW.index(self.ACTIVE if self.state == self.PAUSED else self.state)
 
+    BUTTONS = [("send", "Send quotation"), ("confirm", "Confirm"), ("activate", "Activate"), ("pause", "Pause"),
+               ("resume", "Resume"), ("renew", "Renew"), ("close", "Close")]
+
+    @property
+    def action_buttons(self):
+        return [(a, l) for a, l in self.BUTTONS if self.can(a)]
+
+    @property
+    def portal_buttons(self):
+        labels = {"confirm": "Accept quotation", "pause": "Pause", "resume": "Resume", "renew": "Renew", "close": "Cancel subscription"}
+        return [(a, labels[a]) for a in labels if self.can(a) and (a != "confirm" or self.state == self.QUOTATION)]
+
+    @property
+    def can_addons(self):
+        return self.can("addons")
+
     def can(self, action):
         s, p = self.state, self.plan
         return {

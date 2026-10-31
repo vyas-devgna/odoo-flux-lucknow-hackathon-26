@@ -79,3 +79,15 @@ class StaffForm(forms.ModelForm):
         if commit:
             user.save()
         return user
+
+
+class CustomerForm(forms.ModelForm):
+    class Meta:
+        model = Customer
+        fields = ["name", "company", "email", "phone", "address", "tax_id"]
+        widgets = {"address": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        for f in self.fields.values():
+            f.widget.attrs["class"] = "input"

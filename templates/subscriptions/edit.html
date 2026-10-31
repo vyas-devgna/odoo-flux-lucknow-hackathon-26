@@ -1,0 +1,17 @@
+{% extends 'base.html' %}{% load ui %}{% block heading %}<h1>Edit {{ sub.number }}</h1><p>{{ sub.customer }} · {{ sub.plan.name }}</p>{% endblock %}
+{% block content %}<form method="post" class="stack" style="max-width:1000px">{% csrf_token %}
+<div class="card"><div class="form">{{ form.non_field_errors }}{% for field in form %}<div class="{% if field.name == 'notes' %}full{% endif %}">{% include 'accounts/_field.html' %}</div>{% endfor %}</div></div>
+<div class="card flush"><header><h2>Lines</h2><span class="mute small">Prices default from the catalogue; adjust per customer where agreed.</span></header>
+{{ formset.management_form }}{{ formset.non_form_errors }}<div class="tw"><table><thead><tr><th>Product</th><th>Variant</th><th>Description</th><th>Qty</th><th>Unit price</th><th>Tax</th><th></th></tr></thead><tbody id="rows">
+{% for f in formset %}<tr class="formset-row">{% for h in f.hidden_fields %}{{ h }}{% endfor %}{% for fld in f.visible_fields %}<td>{{ fld }}{{ fld.errors }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+<div style="padding:14px 22px 20px"><button type="button" class="btn sm" data-add-row="#rows" data-prefix="{{ formset.prefix }}">{% icon 'plus' %}Add line</button></div>
+<template id="empty-row"><tr class="formset-row">{% for h in formset.empty_form.hidden_fields %}{{ h }}{% endfor %}{% for fld in formset.empty_form.visible_fields %}<td>{{ fld }}</td>{% endfor %}</tr></template></div>
+<div class="btns"><button class="btn primary">Save</button><a class="btn" href="{% url 'subscriptions:detail' sub.pk %}">Cancel</a></div></form>
+{% endblock %}{% block scripts %}<script>
+const PRICES={{ prices_json|safe }},VARS={{ variants_json|safe }};
+function wire(tr){const p=tr.querySelector('select[name$=-product]'),v=tr.querySelector('select[name$=-variant]'),u=tr.querySelector('input[name$=-unit_price]');if(!p||p.dataset.w)return;p.dataset.w=1;
+ const filt=()=>[...v.options].forEach(o=>{o.hidden=o.value&&VARS[o.value]?.product!=p.value});
+ const price=()=>{if(!p.value)return;const x=VARS[v.value];u.value=(parseFloat(PRICES[p.value])+(x&&x.product==p.value?parseFloat(x.extra):0)).toFixed(2)};
+ p.addEventListener('change',()=>{if(v.selectedOptions[0]?.hidden||p.value!=VARS[v.value]?.product)v.value='';filt();price()});v.addEventListener('change',price);filt()}
+document.querySelectorAll('.formset-row').forEach(wire);document.addEventListener('rowadded',e=>wire(e.target));
+</script>{% endblock %}

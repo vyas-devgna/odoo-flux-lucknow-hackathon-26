@@ -1,0 +1,4 @@
+{% extends 'accounts/auth_base.html' %}{% block title %}Reset password{% endblock %}{% block body %}
+<div><h1>Reset your password</h1><p class="mute" style="margin:6px 0 0">We'll email a reset link to your registered address.</p></div>
+<form method="post" class="form">{% csrf_token %}{% for field in form %}{% include 'accounts/_field.html' %}{% endfor %}<button class="btn primary">Send reset link</button></form>
+<p class="fine"><a href="{% url 'accounts:login' %}">Back to sign in</a></p>{% endblock %}

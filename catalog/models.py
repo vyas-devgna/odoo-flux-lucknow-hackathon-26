@@ -175,6 +175,15 @@ class Discount(models.Model):
         return f"{self.value.normalize():f}%" if self.kind == self.PERCENT else f"₹{self.value}"
 
     @property
+    def window(self):
+        end = f"{self.end_date:%d %b %Y}" if self.end_date else "no end"
+        return f"{self.start_date:%d %b %Y} → {end}"
+
+    @property
+    def usage(self):
+        return f"{self.times_used} / {self.usage_limit}" if self.usage_limit is not None else f"{self.times_used} / ∞"
+
+    @property
     def exhausted(self):
         return self.usage_limit is not None and self.times_used >= self.usage_limit
 

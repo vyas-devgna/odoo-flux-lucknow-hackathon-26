@@ -1,0 +1,1 @@
+<div class="stepper">{% for st in stages %}<span class="step {% if forloop.counter0 < sub.stage_index %}done{% elif forloop.counter0 == sub.stage_index %}cur{% endif %}"><i>{% if forloop.counter0 < sub.stage_index %}✓{% else %}{{ forloop.counter }}{% endif %}</i>{{ st|title }}{% if st == 'active' and sub.state == 'paused' %} (paused){% endif %}</span>{% endfor %}</div>

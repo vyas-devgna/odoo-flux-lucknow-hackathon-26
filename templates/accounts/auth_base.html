@@ -1,0 +1,8 @@
+{% load static %}<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Sign in{% endblock %} · {{ COMPANY }}</title><link rel="stylesheet" href="{% static 'css/app.css' %}">
+<script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'light'</script></head>
+<body><div class="auth">
+<section class="art"><div class="brand" style="padding:0"><span class="logo"></span>{{ COMPANY }}</div>
+<div style="position:relative;z-index:1"><h2>Recurring revenue, finally on autopilot.</h2><p>Plans, subscriptions, invoices and payments in one calm place. Renewals never slip. Nothing gets billed twice.</p></div>
+<div class="chipset"><span>Quote → Active</span><span>Auto invoicing</span><span>Customer portal</span><span>Live finance view</span></div><div class="blob"></div></section>
+<section class="panel"><div class="box">{% block body %}{% endblock %}</div></section></div></body></html>

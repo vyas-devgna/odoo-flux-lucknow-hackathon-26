@@ -1,0 +1,15 @@
+{% extends 'base.html' %}{% load ui %}{% block heading %}<h1>Finance reports</h1><p>{{ s.start|date:"d M Y" }} – {{ s.end|date:"d M Y" }}</p>{% endblock %}
+{% block content %}
+<form class="filters" method="get"><input class="input" type="date" name="from" value="{{ from_ }}"><input class="input" type="date" name="to" value="{{ to }}"><select class="input" name="plan"><option value="">All plans</option>{% for p in plans %}<option value="{{ p.pk }}" {% if plan == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select><input type="hidden" name="view" value="{{ view }}"><button class="btn primary sm">Apply</button></form>
+<div class="grid g4" style="margin-bottom:16px">
+<div class="tile"><small>Active subscriptions</small><b>{{ s.active }}</b><div class="small mute">{{ s.paused }} paused</div></div>
+<div class="tile blue"><small>Cash received</small><b>{{ s.cash|money }}</b><div class="small">{{ s.payments }} payments</div></div>
+<div class="tile lav"><small>Outstanding</small><b>{{ s.outstanding|money }}</b><div class="small">{{ s.outstanding_count }} invoices</div></div>
+<div class="tile pink"><small>Overdue</small><b>{{ s.overdue|money }}</b><div class="small">{{ s.overdue_count }} invoices</div></div></div>
+<div class="grid g2" style="margin-bottom:16px"><div class="card"><header><h2>Recurring revenue by plan</h2><b class="num">{{ s.mrr|money }} / mo</b></header>
+{% for r in s.mrr_rows %}<div class="stat"><span>{{ r.plan }} <span class="small mute">· {{ r.subs }} active</span></span><b class="num">{{ r.mrr|money }}</b></div>{% empty %}<p class="mute">No active subscriptions.</p>{% endfor %}</div>
+<div class="card"><header><h2>Received by method</h2><b class="num">{{ s.invoiced|money }} invoiced</b></header>{% for m in s.by_method %}<div class="stat"><span>{{ m.method|title }}</span><b class="num">{{ m.t|money }}</b></div>{% empty %}<p class="mute">No payments in this range.</p>{% endfor %}
+<p class="small mute" style="margin:12px 0 0">Cash received = payments dated in range. Outstanding and overdue are as of today.</p></div></div>
+<div class="filters"><div class="chips">{% for k, l in views %}<a class="chip {% if view == k %}on{% endif %}" href="?{% qs view=k page='' %}">{{ l }}</a>{% endfor %}</div></div>
+<div class="card flush"><div class="tw"><table class="stack-table"><thead><tr><th>Invoice</th><th>Customer</th><th>Due</th><th class="right">Total</th><th class="right">Balance</th><th>Status</th></tr></thead><tbody>
+{% for i in page %}<tr><td data-l="Invoice"><a class="link" href="{% url 'billing:detail' i.pk %}">{{ i.number }}</a></td><td data-l="Customer">{{ i.bill_to_name }}</td><td data-l="Due">{{ i.due_date|date:"d M Y" }}</td><td data-l="Total" class="right num">{{ i.total|money }}</td><td data-l="Balance" class="right num">{{ i.balance|money }}</td><td data-l="Status">{% badge i.display_state %}</td></tr>{% empty %}<tr><td colspan="6"><div class="empty">Nothing here.</div></td></tr>{% endfor %}</tbody></table></div>{% include 'partials/pager.html' %}</div>{% endblock %}

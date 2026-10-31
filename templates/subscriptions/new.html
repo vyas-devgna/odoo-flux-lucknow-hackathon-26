@@ -1,0 +1,10 @@
+{% extends 'base.html' %}{% block heading %}<h1>New subscription</h1><p>Start from a template to pre-fill plan lines and quote validity.</p>{% endblock %}
+{% block content %}<form method="post" class="card" style="max-width:820px">{% csrf_token %}<div class="form">{{ form.non_field_errors }}
+{% for field in form %}<div class="{% if field.name == 'notes' %}full{% endif %}">{% include 'accounts/_field.html' %}</div>{% endfor %}</div>
+<div class="btns" style="margin-top:20px"><button class="btn primary">Create draft</button><a class="btn" href="{% url 'subscriptions:list' %}">Cancel</a></div></form>
+<script>
+const P={{ plans_json|safe }};const plan=document.getElementById('id_plan'),tpl=document.getElementById('id_template');
+function sync(){const ok=(P[plan.value]||{templates:[]}).templates.map(String);[...tpl.options].forEach(o=>{o.hidden=o.value&&plan.value&&!ok.includes(o.value)});
+ if(tpl.selectedOptions[0]?.hidden)tpl.value=''}
+plan.addEventListener('change',sync);sync();
+</script>{% endblock %}

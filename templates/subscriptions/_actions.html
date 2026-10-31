@@ -1,0 +1,1 @@
+{% for a, label in sub.action_buttons %}<form method="post" action="{% url 'subscriptions:action' sub.pk a %}" {% if a == 'close' %}data-confirm="Close this subscription? Billing stops."{% endif %}>{% csrf_token %}<button class="btn {% if a in 'send confirm activate' %}primary{% elif a == 'close' %}danger{% endif %}">{{ label }}</button></form>{% endfor %}

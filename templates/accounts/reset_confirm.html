@@ -1,0 +1,4 @@
+{% extends 'accounts/auth_base.html' %}{% block title %}New password{% endblock %}{% block body %}
+{% if validlink %}<h1>Choose a new password</h1>
+<form method="post" class="form" novalidate>{% csrf_token %}{% for field in form %}{% include 'accounts/_field.html' %}{% endfor %}<button class="btn primary">Save password</button></form>
+{% else %}<h1>Link expired</h1><p class="mute">This reset link is invalid or has already been used.</p><a class="btn" href="{% url 'accounts:reset' %}">Request a new link</a>{% endif %}{% endblock %}

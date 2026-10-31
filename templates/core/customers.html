@@ -1,0 +1,6 @@
+{% extends 'base.html' %}{% load ui %}{% block heading %}<h1>Customers</h1>{% endblock %}
+{% block actions %}<a class="btn primary" href="{% url 'core:customer_new' %}">{% icon 'plus' %}New customer</a>{% endblock %}
+{% block content %}<form class="filters" method="get"><div class="search">{% icon 'tag' %}<input name="q" value="{{ q }}" placeholder="Search name, company or email"></div></form>
+<div class="card flush"><div class="tw"><table class="stack-table"><thead><tr><th>Customer</th><th>Email</th><th>Subscriptions</th><th>Portal login</th><th></th></tr></thead><tbody>
+{% for c in page %}<tr><td data-l="Customer"><a class="link" href="{% url 'core:customer_edit' c.pk %}">{{ c.display_name }}</a></td><td data-l="Email">{{ c.email }}</td><td data-l="Subscriptions">{{ c.n_subs }}</td><td data-l="Portal">{% if c.user_id %}{% badge 'active' 'Registered' %}{% else %}{% badge 'draft' 'Not yet' %}{% endif %}</td><td class="right"><a class="btn sm" href="{% url 'subscriptions:new' %}?customer={{ c.pk }}">Quote</a></td></tr>
+{% empty %}<tr><td colspan="5"><div class="empty">No customers found.</div></td></tr>{% endfor %}</tbody></table></div>{% include 'partials/pager.html' %}</div>{% endblock %}
