@@ -6,6 +6,10 @@ The maintained [100-step frontend and 100-step backend execution plan](UIUX_BACK
 
 This pass adds atomic/current-state contract transitions, durable checkout retry receipts, email verification before attaching existing billing records, transactional webhook processing, stricter financial document/payment operations, full credit allocation for eligible reversals, concurrent outbox delivery claims, role-aware search/commands, resilient dialogs/forms/charts, and responsive/theme/accessibility corrections. The follow-up fixes invoice panel sizing, distinct checkbox states, refund labels, print documents, and realistic additive demo expansion.
 
+Report-print follow-up (31 Oct 2026): filtered report print views show the first 1,000 matching invoice rows, with the limit disclosed and CSV offered for larger results; scope, filters and the return link are retained, and landscape output restores table columns and resizes charts for print. Six focused Django tests and the Chromium/Poppler print regression passed: short invoices fit one page, a long invoice paginates with repeated headings, and recurring-revenue/revenue reports retain their table columns.
+
+Deployment check (31 Oct 2026): production-mode checks, migration drift check, clean-database migrations and static collection pass. `collectstatic` copied 137 files and post-processed 409; a stale Chart.js source-map reference was removed. The three `check --deploy` warnings are the documented HSTS subdomain/preload choices and `SAMEORIGIN` framing required by the built-in document viewer.
+
 Checkpoints use `vyas-devgna`, every 30 minutes during active work. The user subsequently authorized pushing verified commits to `origin/main`; deployment and history rewriting remain unauthorized.
 
 | Milestone | Scope | Status |

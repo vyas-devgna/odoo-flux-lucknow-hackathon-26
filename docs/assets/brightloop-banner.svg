@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 420" role="img" aria-labelledby="title description">
+  <title id="title">Brightloop Studio</title>
+  <desc id="description">A recurring invoice path connects quotation, billing and renewal on a deep teal field.</desc>
+  <rect width="1440" height="420" fill="#102a2a"/>
+  <path d="M0 355h1440" stroke="#31504a" stroke-width="1"/>
+
+  <g aria-hidden="true" transform="translate(82 82)">
+    <rect width="68" height="68" rx="18" fill="#5bd0ad"/>
+    <path d="M18 23h32M18 34h22M18 45h32" fill="none" stroke="#102a2a" stroke-linecap="round" stroke-width="5"/>
+    <circle cx="47" cy="34" r="5" fill="#e9aa61"/>
+  </g>
+  <text x="82" y="211" fill="#f4efe4" font-family="Avenir Next, Segoe UI, sans-serif" font-size="62" font-weight="650" letter-spacing="-2.2">Brightloop Studio</text>
+  <text x="84" y="264" fill="#b8d0c6" font-family="Avenir Next, Segoe UI, sans-serif" font-size="25" font-weight="450">Quotations, contracts and recurring billing</text>
+  <text x="84" y="309" fill="#5bd0ad" font-family="Avenir Next, Segoe UI, sans-serif" font-size="17" font-weight="600">A Django workspace for the full customer lifecycle</text>
+
+  <g aria-hidden="true">
+    <path d="M779 218v-30c0-63 50-113 113-113h260c63 0 113 50 113 113v66c0 63-50 113-113 113H892c-63 0-113-50-113-113v-10"
+      fill="none" stroke="#5bd0ad" stroke-width="3"/>
+    <path d="m1102 65 12 12-12 12" fill="none" stroke="#e9aa61" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    <circle cx="779" cy="218" r="8" fill="#e9aa61"/>
+    <circle cx="1265" cy="218" r="8" fill="#5bd0ad"/>
+
+    <rect x="847" y="101" width="332" height="216" rx="13" fill="#f4efe4"/>
+    <path d="M871 130h54" stroke="#236957" stroke-linecap="round" stroke-width="6"/>
+    <text x="871" y="164" fill="#102a2a" font-family="Avenir Next, Segoe UI, sans-serif" font-size="19" font-weight="650">Invoice snapshot</text>
+    <path d="M871 187h284M871 211h175M871 235h235" stroke="#bdc9be" stroke-linecap="round" stroke-width="2"/>
+    <path d="M871 273h111" stroke="#236957" stroke-linecap="round" stroke-width="5"/>
+    <circle cx="1128" cy="273" r="15" fill="#e9aa61"/>
+    <path d="m1122 273 4 4 8-9" fill="none" stroke="#102a2a" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"/>
+
+    <rect x="733" y="183" width="148" height="54" rx="27" fill="#1b4140" stroke="#5bd0ad" stroke-width="1.5"/>
+    <text x="807" y="217" text-anchor="middle" fill="#f4efe4" font-family="Avenir Next, Segoe UI, sans-serif" font-size="16" font-weight="600">Next period</text>
+    <rect x="1152" y="230" width="160" height="54" rx="27" fill="#1b4140" stroke="#e9aa61" stroke-width="1.5"/>
+    <text x="1232" y="264" text-anchor="middle" fill="#f4efe4" font-family="Avenir Next, Segoe UI, sans-serif" font-size="16" font-weight="600">Renewal</text>
+  </g>
+
+  <text x="84" y="392" fill="#93b0a5" font-family="Avenir Next, Segoe UI, sans-serif" font-size="15" font-weight="500">Django 5.2 · SQLite or PostgreSQL · INR</text>
+  <text x="1356" y="392" text-anchor="end" fill="#93b0a5" font-family="Avenir Next, Segoe UI, sans-serif" font-size="15" font-weight="500">Lucknow · India</text>
+</svg>

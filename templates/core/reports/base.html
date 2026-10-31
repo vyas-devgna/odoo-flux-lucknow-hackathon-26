@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% load ui %}
+{% block content %}
+{% if report_print %}<div class="report-preview-toolbar no-print" role="region" aria-label="Report print controls">
+  <div><b>{{ title }} is ready to print</b><p>Choose Save as PDF or your printer. All amounts are in INR.{% if page.paginator.count > 1000 %} The first 1,000 matching invoices are included; export CSV for the complete list.{% endif %}</p></div>
+  <div class="btns"><a class="btn" href="{{ report_return_url }}" hx-boost="false">Back to report</a><button type="button" class="btn primary" onclick="print()">{% icon 'print' %}Print / Save PDF</button></div>
+</div>{% endif %}
+<section class="report-document report-{{ request.resolver_match.url_name }}" {% if report_print %}data-report-print{% endif %} aria-label="{{ title }} report">
+  {% include 'core/reports/_print_header.html' %}
+  {% block report_content %}{% endblock %}
+  <footer class="report-notes report-print-only">
+    {% if request.resolver_match.url_name == 'reports' %}Cash received is net of refunds and excludes pending, failed and test payments. Document totals include tax, draft invoices and credit notes; canceled documents are excluded. Outstanding and overdue balances are current, not historical balances at the period end. The chart shows the last 12 calendar months; top customers cover all recorded invoices in the selected scope.
+    {% elif request.resolver_match.url_name == 'report_mrr' %}MRR is the monthly equivalent of recurring charges; ARR is MRR × 12. These are operating run rates, not cash receipts or recognized accounting revenue. The charts and monthly bridge cover the last 12 calendar months; plan totals and the 180-day renewal forecast are current.
+    {% elif request.resolver_match.url_name == 'report_retention' %}Cohorts cover the last 12 calendar months. A customer is retained while at least one contract is active. Future observations are left blank. The period selector does not change the cohort observation window.
+    {% elif request.resolver_match.url_name == 'report_receivables' %}Aging reflects unpaid confirmed invoices as of {{ report_today|date:"d M Y" }}. Credit notes and canceled invoices are excluded. Date-range selections do not change this current balance snapshot.
+    {% else %}Net invoiced revenue is after discounts and before tax, including credit adjustments. The table contains up to the top 50 groups; percentages use the sum of those displayed groups. The chart shows the top 10 groups.
+    {% endif %}
+  </footer>
+</section>
+{% endblock %}

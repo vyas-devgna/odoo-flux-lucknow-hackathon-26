@@ -1,6 +1,7 @@
 import csv
 from decimal import Decimal
 
+from django.core.paginator import Paginator
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.utils import timezone
@@ -26,10 +27,28 @@ def _common(request, default_range="year"):
     start, end = reports.parse_date(g.get("from"), ds), reports.parse_date(g.get("to"), de)
     if end < start:
         start, end = end, start
+    scope = []
+    for label, model, value in (("Plan", Plan, f.plan), ("Product", Product, f.product),
+                                ("Salesperson", User, f.salesperson), ("Customer", Customer, f.customer)):
+        if value:
+            record = model.objects.filter(pk=value).first()
+            scope.append((label, str(record) if record else f"Unavailable record #{value}"))
+    if f.status:
+        scope.append(("Status", dict(Subscription.STATES)[f.status]))
+    back_query = g.copy()
+    back_query.pop("print", None)
     return f, start, end, {
+        "report_print": g.get("print") == "1", "report_generated": timezone.now(), "report_scope": scope,
+        "report_return_url": request.path + ("?" + back_query.urlencode() if back_query else ""),
+        "report_today": today,
         "f": f, "from_": start.isoformat(), "to": end.isoformat(), "start": start, "end": end,
         "plans": Plan.objects.all(), "products": Product.objects.filter(active=True), "salespeople": User.objects.filter(role__in=["admin", "staff"]),
         "customers": Customer.objects.order_by("name")[:300], "statuses": Subscription.STATES}
+
+
+def _report_page(request, qs):
+    # shortcut: print at most 1,000 rows, raise the cap or stream a separate print export for larger reports.
+    return Paginator(qs, 1000).get_page(1) if request.GET.get("print") == "1" else paginate(request, qs)
 
 
 def _csv(name, header, rows):
@@ -58,7 +77,7 @@ def revenue(request):
     if request.GET.get("export") == "csv":
         return _csv("revenue-invoices", ["Number", "Customer", "Issued", "Due", "Total", "Balance", "Status"], ([i.number, i.bill_to_name, i.issue_date, i.due_date, i.total, i.balance, i.display_state] for i in qs))
     trend = reports.failed_payment_trend()
-    ctx.update({"s": s, "view": view, "views": [("overdue", "Overdue"), ("outstanding", "Outstanding"), ("paid", "Paid")], "page": paginate(request, qs), "title": "Revenue",
+    ctx.update({"s": s, "view": view, "views": [("overdue", "Overdue"), ("outstanding", "Outstanding"), ("paid", "Paid")], "page": _report_page(request, qs), "title": "Revenue",
                 "cash_cfg": {"type": "bar", "labels": [r["label"] for r in cash], "datasets": [{"label": "Invoiced", "data": [float(r["invoiced"]) for r in cash], "color": "c3"}, {"label": "Collected", "data": [float(r["collected"]) for r in cash], "color": "c1"}]},
                 "fail_trend": trend, "top": reports.top_customers(8, f)})
     return render(request, "core/reports/revenue.html", ctx)
@@ -99,7 +118,7 @@ def receivables(request):
     qs = f.invoices(Invoice.objects.filter(state=Invoice.CONFIRMED).exclude(kind="credit_note").select_related("customer")).order_by("due_date")
     if request.GET.get("export") == "csv":
         return _csv("receivables", ["Invoice", "Customer", "Due", "Days overdue", "Balance"], ([i.number, i.bill_to_name, i.due_date, i.days_overdue, i.balance] for i in qs))
-    ctx.update({"aging": ag, "aging_total": total, "page": paginate(request, qs), "title": "Receivables", "today": timezone.localdate(),
+    ctx.update({"aging": ag, "aging_total": total, "page": _report_page(request, qs), "title": "Receivables", "today": timezone.localdate(),
                 "chart_cfg": {"type": "bar", "labels": [b["label"] for b in ag], "datasets": [{"label": "Outstanding", "data": [float(b["amount"]) for b in ag], "color": "c3"}]}})
     return render(request, "core/reports/receivables.html", ctx)
 

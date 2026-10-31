@@ -86,8 +86,27 @@ function counters() {
    Spec: 2px lines, bars <= 24px with 4px data-end radius, 2px surface gaps in stacks, hairline solid grid, text in ink
    tokens (never series colour), one tooltip listing every series with a crosshair, legend for >= 2 series, and a table twin. */
 const charts = new Map();
-window.addEventListener('beforeprint', () => charts.forEach(({ chart }, cv) => { chart.stop(); chart.resize(cv.parentElement.clientWidth, cv.parentElement.clientHeight); chart.update('none'); }));
-window.addEventListener('afterprint', () => charts.forEach(({ chart }) => { chart.resize(); chart.update('none'); }));
+const printChartState = new Map();
+window.addEventListener('beforeprint', () => charts.forEach(({ chart, cfg }, cv) => {
+  if (!cv.parentElement.clientWidth || printChartState.has(chart)) return;
+  const axes = ['x', 'y'].map(axis => { const s = chart.options.scales[axis]; return [s.ticks.color, s.grid.color, s.border.color]; });
+  const colors = chart.data.datasets.map(d => [d.borderColor, d.backgroundColor]);
+  const marks = [...cv.closest('figure').querySelectorAll('.legend i')].map(i => i.style.getPropertyValue('--k'));
+  printChartState.set(chart, { axes, colors, marks, ratio: chart.options.devicePixelRatio });
+  chart.stop(); chart.options.devicePixelRatio = 2;
+  for (const axis of ['x', 'y']) { const s = chart.options.scales[axis]; s.ticks.color = '#667085'; s.grid.color = '#e5e9f0'; s.border.color = '#d0d5dd'; }
+  chart.data.datasets.forEach((d, i) => { const c = tok('print-' + cfg.datasets[i].color) || d.borderColor;
+    d.borderColor = cfg.stacked ? '#fff' : c; d.backgroundColor = cfg.type === 'line' ? c + '14' : c;
+    cv.closest('figure').querySelectorAll('.legend i')[i]?.style.setProperty('--k', c); });
+  chart.resize(cv.parentElement.clientWidth, cv.parentElement.clientHeight); chart.update('none');
+}));
+window.addEventListener('afterprint', () => charts.forEach(({ chart }, cv) => {
+  const saved = printChartState.get(chart); if (!saved) return;
+  ['x', 'y'].forEach((axis, i) => { const s = chart.options.scales[axis]; [s.ticks.color, s.grid.color, s.border.color] = saved.axes[i]; });
+  chart.data.datasets.forEach((d, i) => { [d.borderColor, d.backgroundColor] = saved.colors[i]; });
+  cv.closest('figure').querySelectorAll('.legend i').forEach((mark, i) => mark.style.setProperty('--k', saved.marks[i]));
+  chart.options.devicePixelRatio = saved.ratio; printChartState.delete(chart); chart.resize(); chart.update('none');
+}));
 motion.addEventListener('change', e => charts.forEach(v => { if (e.matches) v.chart.stop(); v.chart.options.animation = e.matches ? false : { duration: 200, easing: 'easeOutCubic' }; }));
 const tok = n => css('--' + n);
 const fmtMoney = v => '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
@@ -113,7 +132,7 @@ function buildChart(cv) {
   if (bar && cfg.stacked) datasets.forEach(d => { d.stack = 's'; });
   const tickColor = tok('mute'), grid = tok('line');
   const c = new Chart(cv, { type: cfg.type, data: { labels: cfg.labels, datasets }, options: {
-    responsive: true, maintainAspectRatio: false, animation: reduce() ? false : { duration: 200, easing: 'easeOutCubic' }, events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove', 'pointerdown'], interaction: { mode: 'index', intersect: false }, layout: { padding: { right: line ? 8 : 0, top: 4 } },
+    responsive: true, maintainAspectRatio: false, animation: reduce() || document.querySelector('[data-report-print]') ? false : { duration: 200, easing: 'easeOutCubic' }, events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove', 'pointerdown'], interaction: { mode: 'index', intersect: false }, layout: { padding: { right: line ? 8 : 0, top: 4 } },
     plugins: { legend: { display: false }, tooltip: { enabled: false, external: externalTooltip(cfg), mode: 'index', intersect: false, position: 'nearest' } },
     scales: { x: { stacked: !!cfg.stacked, grid: { display: false }, border: { color: grid }, ticks: { color: tickColor, padding: 8, maxRotation: 0, autoSkip: true } },
               y: { stacked: !!cfg.stacked, beginAtZero: true, grid: { color: grid, lineWidth: 1 }, border: { display: false }, ticks: { color: tickColor, padding: 8, maxTicksLimit: 5, callback: v => cfg.plain ? v : fmtCompact(v) } } } }, plugins: [crosshair, endDot] });
@@ -335,6 +354,7 @@ window.addEventListener('resize', () => { cancelAnimationFrame(tableResizeFrame)
 /* ---------- init (runs on load and after every boosted navigation) */
 function init() { enhanceForms(); enhanceScrollableTables(); if (!$('#docview') || $('#docview').inert) document.body.classList.remove('doc-open'); $$('.formset-row [id]:not([aria-label]):not([type=hidden])').forEach(i => { const l = i.closest('td')?.dataset.l; if (l) i.setAttribute('aria-label', l); }); $$('input[id$=-DELETE]:not([aria-label])').forEach(i => i.setAttribute('aria-label', 'Remove row')); flash(); counters(); initCharts(); setMobileMenu(false); $$('input[autofocus]').forEach(i => i.focus()); }
 document.addEventListener('DOMContentLoaded', init);
+window.addEventListener('load', async () => { if (document.querySelector('[data-report-print]')) { await document.fonts.ready; requestAnimationFrame(() => window.print()); } });
 document.addEventListener('htmx:afterSettle', init);
 document.addEventListener('htmx:responseError', e => { unlockSubmit(e.detail.elt); toast('Something went wrong. Please try again.', 'error'); });
 document.addEventListener('htmx:sendError', e => { unlockSubmit(e.detail.elt); toast('Network problem. Check your connection and retry.', 'error'); });

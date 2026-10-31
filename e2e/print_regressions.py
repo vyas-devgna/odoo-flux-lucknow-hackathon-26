@@ -108,7 +108,7 @@ def main():
             page.evaluate("""() => {
               window.__chartPrintEvents = [];
               for (const name of ['beforeprint','afterprint']) window.addEventListener(name, () =>
-                window.__chartPrintEvents.push({name, boxes:[...document.querySelectorAll('.chart-box')].map(b=>({box:b.clientWidth,canvas:b.querySelector('canvas')?.width}))}));
+                window.__chartPrintEvents.push({name, boxes:[...document.querySelectorAll('.chart-box')].map(b=>({box:b.clientWidth,canvas:Chart.getChart(b.querySelector('canvas'))?.width,bitmap:b.querySelector('canvas')?.width}))}));
             }""")
             print_state = page.evaluate("""() => ({filter:getComputedStyle(document.querySelector('form#rf')).display,
               header:getComputedStyle(document.querySelector('table thead')).display,
@@ -172,7 +172,7 @@ def main():
     before_print = next((event for event in chart_print_events if event["name"] == "beforeprint"), None)
     if print_layout_width["width"] < 1000 or print_layout_width["chartWidth"] < 400:
         raise AssertionError("Report print layout is still using the narrow mobile viewport")
-    if not before_print or not before_print["boxes"] or any(abs(box["box"] - box["canvas"]) > 4 for box in before_print["boxes"]):
+    if not before_print or not before_print["boxes"] or any(abs(box["box"] - box["canvas"]) > 4 or box["bitmap"] < box["canvas"] * 1.9 for box in before_print["boxes"]):
         raise AssertionError("Chart.js canvas was not resized to its physical print parent")
     if print_state["filter"] != "none" or print_state["header"] != "table-header-group" or print_state["cell"] != "table-cell":
         raise AssertionError("Report print CSS did not hide filters or restore table layout")

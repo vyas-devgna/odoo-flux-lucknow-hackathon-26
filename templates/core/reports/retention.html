@@ -1,6 +1,6 @@
-{% extends 'base.html' %}{% load ui %}{% block heading %}<h1>Retention</h1><p>Share of each month's new customers still holding an active contract k months later.</p>{% endblock %}
-{% block content %}{% include 'core/reports/_filters.html' %}
-<div class="card flush"><div class="tw"><table class="compact"><thead><tr><th>Cohort</th><th class="right">Customers</th>{% for k in ks %}<th class="right">M{{ k }}</th>{% endfor %}</tr></thead><tbody>
+{% extends 'core/reports/base.html' %}{% load ui %}{% block heading %}<h1>Retention</h1><p>Share of each month's new customers still holding an active contract k months later.</p>{% endblock %}
+{% block report_content %}{% include 'core/reports/_filters.html' %}
+<div class="card flush report-table"><div class="tw"><table class="compact"><thead><tr><th>Cohort</th><th class="right">Customers</th>{% for k in ks %}<th class="right">M{{ k }}</th>{% endfor %}</tr></thead><tbody>
 {% for c in cohorts %}<tr><td>{{ c.label }}</td><td class="right num">{{ c.size }}</td>{% for cell in c.cells %}<td class="right num" style="{% if cell.pct is not None %}background:color-mix(in srgb,var(--accent) {{ cell.pct }}%,transparent);color:{% if cell.pct > 55 %}#fff{% else %}var(--ink){% endif %}{% endif %}">{% if cell.pct is not None %}{{ cell.pct }}%{% else %}·{% endif %}</td>{% endfor %}{% for _ in ks %}{% endfor %}</tr>
 {% empty %}<tr><td colspan="14"><div class="empty">No cohorts yet.</div></td></tr>{% endfor %}</tbody></table></div></div>
 <p class="small mute" style="margin-top:12px">A customer is retained while at least one of their contracts is active; renewals keep them retained. Months after the cohort's last observed month are left blank.</p>{% endblock %}

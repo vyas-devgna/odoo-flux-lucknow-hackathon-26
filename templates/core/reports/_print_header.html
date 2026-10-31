@@ -1,0 +1,8 @@
+<header class="report-header report-print-only">
+  <div class="report-letterhead">
+    <div class="report-identity"><svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#14161a"/><circle cx="16" cy="16" r="6.5" fill="none" stroke="#fff" stroke-width="3.4"/><circle cx="23.5" cy="8.5" r="2.5" fill="#e8710a"/></svg><div><b>{{ company.name|default:COMPANY }}</b>{% if company.address %}<span>{{ company.address }}</span>{% endif %}</div></div>
+    <div class="report-issued"><span>Prepared {{ report_generated|date:"d M Y, H:i T" }}</span><span>Currency <b>INR</b></span></div>
+  </div>
+  <div class="report-heading"><h2>{{ title }}</h2><p>{% if request.resolver_match.url_name == 'report_receivables' %}Balance snapshot as of {{ report_today|date:"d M Y" }}{% elif request.resolver_match.url_name == 'report_retention' %}Customer cohorts through {{ report_today|date:"F Y" }}{% else %}{{ start|date:"d M Y" }} – {{ end|date:"d M Y" }}{% endif %}{% if dim %} · By {{ dim }}{% endif %}</p></div>
+  <dl class="report-scope"><div><dt>Scope</dt><dd>{% if not report_scope %}All customers, plans and products{% else %}Filtered records{% endif %}</dd></div>{% for label, value in report_scope %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl>
+</header>
