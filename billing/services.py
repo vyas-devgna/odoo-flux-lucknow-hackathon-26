@@ -96,6 +96,7 @@ def run_billing(as_of=None, trigger="scheduler"):
     as_of = as_of or timezone.localdate()
     run = BillingRun.objects.create(as_of=as_of, trigger=trigger)
     errors = []
+    new_invoices = []
     due_ids = list(Subscription.objects.filter(state=Subscription.ACTIVE, next_invoice_date__lte=as_of)
                    .order_by("id").values_list("id", flat=True))
     for sid in due_ids:
@@ -110,7 +111,7 @@ def run_billing(as_of=None, trigger="scheduler"):
                     if exists:
                         run.skipped += 1  # already billed (e.g. an earlier run died after the invoice, before the schedule moved)
                     else:
-                        create_invoice_for_period(sub, sub.periods_billed, as_of)
+                        new_invoices.append(create_invoice_for_period(sub, sub.periods_billed, as_of).pk)
                         run.created += 1
                     sub.periods_billed += 1
                     sub.next_invoice_date = add_interval(sub.start_date, sub.plan.interval, sub.periods_billed)
@@ -119,6 +120,18 @@ def run_billing(as_of=None, trigger="scheduler"):
                 run.failed += 1
                 errors.append(f"{sid}: {traceback.format_exc(limit=2)}")
                 break
+    from core.models import CompanySettings
+    co = CompanySettings.get()
+    if new_invoices and (co.auto_confirm_invoices or co.auto_email_invoices):
+        for inv in Invoice.objects.filter(pk__in=new_invoices):
+            try:
+                if co.auto_email_invoices:
+                    send_invoice(inv)  # confirms first, then emails
+                else:
+                    confirm_invoice(inv)
+            except Exception:
+                run.failed += 1
+                errors.append(f"{inv.number}: {traceback.format_exc(limit=1)}")
     # Close finished terms: all periods up to expiry billed, and plan closes itself (or a renewal took over)
     finished = Subscription.objects.filter(state=Subscription.ACTIVE, expiry_date__lt=as_of).select_related("plan")
     for sub in finished:

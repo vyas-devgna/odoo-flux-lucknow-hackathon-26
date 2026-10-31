@@ -379,3 +379,38 @@ class FeatureTests(TestCase):
         for u in (reverse("subscriptions:list") + "?view=board", reverse("billing:list") + "?sort=due", reverse("subscriptions:list") + "?sort=-customer",
                   reverse("core:dashboard") + "?range=year", reverse("subscriptions:print", args=[Subscription.objects.first().pk])):
             self.assertEqual(self.client.get(u).status_code, 200, u)
+
+
+class ImportAndAutomationTests(TestCase):
+    def setUp(self):
+        self.plan, self.cust = make_world()
+        self.today = timezone.localdate()
+        self.admin = User.objects.create_user("ad@x.test", PW, role="admin")
+        self.client.force_login(self.admin)
+
+    def test_customer_import(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        csv_data = "name,email,company\nAsha,asha@v.test,V Foods\nBad,not-an-email,\nA Updated,a@x.test,New Co\n,noname@x.test,\n"
+        r = self.client.post(reverse("core:customer_import"), {"file": SimpleUploadedFile("c.csv", csv_data.encode())})
+        self.assertContains(r, "Rejected")
+        self.assertTrue(Customer.objects.filter(email="asha@v.test").exists())
+        self.assertEqual(Customer.objects.get(email="a@x.test").company, "New Co")  # updated, not duplicated
+        self.assertEqual(Customer.objects.filter(email__iexact="a@x.test").count(), 1)
+        r = self.client.post(reverse("core:customer_import"), {"file": SimpleUploadedFile("c.csv", b"foo,bar\n1,2\n")}, follow=True)
+        self.assertContains(r, "headers")
+
+    def test_duplicate_customer_email_rejected(self):
+        r = self.client.post(reverse("core:customer_new"), {"name": "Dup", "email": "A@x.test", "company": "", "phone": "", "address": "", "tax_id": ""})
+        self.assertEqual(r.status_code, 200); self.assertEqual(Customer.objects.count(), 1)
+
+    def test_auto_confirm_and_email(self):
+        from core.models import CompanySettings
+        co = CompanySettings.get(); co.auto_email_invoices = True; co.save()
+        active_sub(self.plan, self.cust, self.today)
+        billing.run_billing(self.today)
+        inv = Invoice.objects.get()
+        self.assertEqual(inv.state, "confirmed"); self.assertIsNotNone(inv.sent_at); self.assertEqual(len(mail.outbox), 1)
+        co.auto_email_invoices = False; co.auto_confirm_invoices = True; co.save()
+        active_sub(self.plan, Customer.objects.create(name="Q", email="q@x.test"), self.today); billing.run_billing(self.today)
+        self.assertEqual(Invoice.objects.exclude(pk=inv.pk).get().state, "confirmed")
+        self.assertEqual(len(mail.outbox), 1)  # confirm only, no extra email

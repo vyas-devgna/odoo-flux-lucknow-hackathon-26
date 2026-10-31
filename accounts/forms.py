@@ -94,6 +94,13 @@ class StaffForm(forms.ModelForm):
 
 
 class CustomerForm(forms.ModelForm):
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        dup = Customer.objects.filter(email__iexact=email).exclude(pk=self.instance.pk)
+        if dup.exists():
+            raise forms.ValidationError(f"A customer with this email already exists ({dup.first().display_name}).")
+        return email
+
     class Meta:
         model = Customer
         fields = ["name", "company", "email", "phone", "address", "tax_id"]

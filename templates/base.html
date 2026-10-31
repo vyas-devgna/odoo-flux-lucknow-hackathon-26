@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="{% static 'css/app.css' %}">
 <script>document.documentElement.dataset.theme=localStorage.getItem('theme')||'light'</script>
 </head><body>
+<a href="#main" class="skip">Skip to content</a>
 <div class="wrap">
 {% with n=request.resolver_match.url_name ns=request.resolver_match.namespace %}
 <header class="topbar">
@@ -15,21 +16,21 @@
   {% if user.is_internal %}
     <a href="{% url 'core:dashboard' %}" class="{% if n == 'dashboard' %}on{% endif %}">Dashboard</a>
     <a href="{% url 'subscriptions:list' %}" class="{% if ns == 'subscriptions' %}on{% endif %}">Subscriptions</a>
-    <a href="{% url 'billing:list' %}" class="{% if ns == 'billing' and n in 'list detail print' %}on{% endif %}">Invoices</a>
+    <a href="{% url 'billing:list' %}" class="{% if ns == 'billing' and n != 'payments' and n != 'runs' and n != 'quick_pay' %}on{% endif %}">Invoices</a>
     <a href="{% url 'billing:payments' %}" class="{% if n == 'payments' %}on{% endif %}">Payments</a>
     <a href="{% url 'core:customers' %}" class="{% if 'customer' in n %}on{% endif %}">Customers</a>
     <a href="{% url 'core:reports' %}" class="{% if n == 'reports' %}on{% endif %}">Analytics</a>
     <details class="{% if ns == 'catalog' %}on{% endif %}"><summary>Catalogue</summary><div class="pop">
       <a href="{% url 'catalog:products_list' %}">{% icon 'box' %}Products</a><a href="{% url 'catalog:plans_list' %}">{% icon 'layers' %}Plans</a>
       <a href="{% url 'catalog:templates_list' %}">{% icon 'file' %}Quotation templates</a><a href="{% url 'catalog:discounts_list' %}">{% icon 'percent' %}Discounts</a><a href="{% url 'catalog:taxes_list' %}">{% icon 'tag' %}Taxes</a></div></details>
-    <details class="{% if n in 'runs audit settings team_list' or 'team' in n %}on{% endif %}"><summary>More</summary><div class="pop">
+    <details class="{% if n == 'runs' or n == 'audit' or n == 'settings' or 'team' in n %}on{% endif %}"><summary>More</summary><div class="pop">
       <a href="{% url 'billing:runs' %}">{% icon 'clock' %}Billing runs</a>
       {% if user.is_admin_role %}<a href="{% url 'core:audit' %}">{% icon 'shield' %}Audit log</a><a href="{% url 'accounts:team' %}">{% icon 'users' %}Team</a><a href="{% url 'core:settings' %}">{% icon 'tag' %}Settings</a>{% endif %}
       <hr><a href="{% url 'core:export' 'subscriptions' %}">{% icon 'download' %}Export subscriptions</a><a href="{% url 'core:export' 'payments' %}">{% icon 'download' %}Export payments</a></div></details>
   {% else %}
     <a href="{% url 'core:portal' %}" class="{% if n == 'portal' %}on{% endif %}">Home</a>
-    <a href="{% url 'core:portal_subscriptions' %}" class="{% if 'portal_subscription' in n %}on{% endif %}">Subscriptions</a>
-    <a href="{% url 'core:portal_invoices' %}" class="{% if 'portal_invoice' in n or n == 'portal_pay' %}on{% endif %}">Invoices</a>
+    <a href="{% url 'core:portal_subscriptions' %}" class="{% if n == 'portal_subscriptions' or n == 'portal_subscription' %}on{% endif %}">Subscriptions</a>
+    <a href="{% url 'core:portal_invoices' %}" class="{% if n == 'portal_invoices' or n == 'portal_invoice' or n == 'portal_pay' %}on{% endif %}">Invoices</a>
     <a href="{% url 'core:portal_profile' %}" class="{% if n == 'portal_profile' %}on{% endif %}">Billing details</a>
   {% endif %}
   </nav>
@@ -46,7 +47,7 @@
 </header>
 {% endwith %}
 {% if messages %}<div class="msgs">{% for m in messages %}<div class="msg {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}</div>{% endif %}
-<main>
+<main id="main">
 <div class="pagehead"><div>{% block crumbs %}{% endblock %}{% block heading %}<h1>{{ title }}</h1>{% endblock %}</div><div class="acts">{% block actions %}{% endblock %}</div></div>
 {% block content %}{% endblock %}
 </main></div>

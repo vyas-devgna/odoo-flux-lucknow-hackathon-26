@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Count, F, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -125,6 +126,7 @@ def portal(request):
     owed = invs.filter(state=Invoice.CONFIRMED).aggregate(t=Sum(reports.BALANCE))["t"] or Decimal(0)
     return render(request, "portal/home.html", {
         "subs": subs.filter(state__in=["active", "paused", "confirmed", "quotation"])[:6], "invoices": invs[:6], "owed": owed,
+        "next_sub": subs.filter(state="active", next_invoice_date__isnull=False).order_by("next_invoice_date").first(),
         "active": subs.filter(state="active").count(), "open_count": invs.filter(state=Invoice.CONFIRMED).count(),
         "overdue": [i for i in invs.filter(state=Invoice.CONFIRMED, due_date__lt=timezone.localdate())]})
 
@@ -177,7 +179,10 @@ def _my_invoices(request):
 
 @customer_required
 def portal_invoices(request):
-    return render(request, "portal/invoices.html", {"page": paginate(request, _my_invoices(request).select_related("subscription"))})
+    qs = _my_invoices(request).select_related("subscription")
+    if request.GET.get("status") == "due":
+        qs = qs.filter(state=Invoice.CONFIRMED)
+    return render(request, "portal/invoices.html", {"page": paginate(request, qs), "due_only": request.GET.get("status") == "due"})
 
 
 @customer_required
@@ -333,3 +338,54 @@ def customer_statement(request, pk):
         run += (r["debit"] or 0) - (r["credit"] or 0)
         r["bal"] = run
     return render(request, "core/statement.html", {"c": c, "rows": rows, "balance": run, "today": timezone.localdate()})
+
+
+@internal_required
+def customer_import(request):
+    """Bring customers over from a spreadsheet. Rows are matched by email: new ones are created, existing ones updated."""
+    import io
+    report = None
+    if request.method == "POST" and request.FILES.get("file"):
+        f = request.FILES["file"]
+        if f.size > 2_000_000:
+            messages.error(request, "File too large (2 MB max).")
+            return redirect("core:customer_import")
+        try:
+            text = f.read().decode("utf-8-sig")
+        except UnicodeDecodeError:
+            messages.error(request, "Please upload a UTF-8 CSV file.")
+            return redirect("core:customer_import")
+        rdr = csv.DictReader(io.StringIO(text))
+        cols = {(c or "").strip().lower(): c for c in (rdr.fieldnames or [])}
+        if "email" not in cols or "name" not in cols:
+            messages.error(request, "The first row must contain at least the headers: name, email.")
+            return redirect("core:customer_import")
+        created = updated = 0
+        errors = []
+        from django.core.validators import validate_email
+        from django.core.exceptions import ValidationError as VE
+        with transaction.atomic():
+            for n, row in enumerate(rdr, start=2):
+                g = lambda k: (row.get(cols.get(k, ""), "") or "").strip()
+                email = g("email").lower()
+                try:
+                    validate_email(email)
+                    if not g("name"):
+                        raise VE("name is required")
+                except VE as e:
+                    errors.append(f"Row {n}: {email or '(no email)'} – {e.messages[0]}")
+                    continue
+                obj = Customer.objects.filter(email__iexact=email).first()
+                vals = {"name": g("name"), "company": g("company"), "phone": g("phone"), "address": g("address"), "tax_id": g("tax_id")}
+                if obj:
+                    for k, v in vals.items():
+                        if v:
+                            setattr(obj, k, v)
+                    obj.save()
+                    updated += 1
+                else:
+                    Customer.objects.create(email=email, **vals)
+                    created += 1
+        audit.log(request.user, "customer.import", detail=f"{created} created, {updated} updated, {len(errors)} rejected")
+        report = {"created": created, "updated": updated, "errors": errors[:50], "n_errors": len(errors)}
+    return render(request, "core/customer_import.html", {"report": report})

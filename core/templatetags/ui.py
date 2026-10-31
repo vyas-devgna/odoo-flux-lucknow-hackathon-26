@@ -154,6 +154,7 @@ def notifications(user):
         (Invoice.objects.filter(state="confirmed", due_date__lt=today, amount_paid__lt=F("total")).count(), "overdue invoices to chase", "/billing/invoices/?status=overdue", "bad"),
         (Invoice.objects.filter(state="draft").count(), "draft invoices to review", "/billing/invoices/?status=draft", "go"),
         (Subscription.objects.filter(state="active", next_invoice_date__lte=today).count(), "subscriptions due for billing", "/billing/runs/", "go"),
+        (Subscription.objects.filter(state="confirmed").count(), "accepted subscriptions waiting for activation", "/subscriptions/?state=confirmed", "go"),
         (Subscription.objects.filter(state="quotation", quote_valid_until__lte=today + timedelta(days=3)).count(), "quotations expiring in 3 days", "/subscriptions/?state=quotation", ""),
         (Subscription.objects.filter(state="active", expiry_date__gte=today, expiry_date__lte=today + timedelta(days=14)).count(), "subscriptions expiring in 14 days", "/subscriptions/?state=active", ""),
     ]

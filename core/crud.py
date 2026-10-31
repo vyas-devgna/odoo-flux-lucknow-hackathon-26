@@ -113,7 +113,7 @@ class StyledFormMixin:
             w = f.widget
             if isinstance(w, forms.CheckboxInput):
                 w.attrs["class"] = "switch"
-            elif isinstance(w, forms.CheckboxSelectMultiple):
+            elif isinstance(w, (forms.CheckboxSelectMultiple, forms.RadioSelect)):
                 pass
             elif isinstance(w, (forms.DateInput,)):
                 w.input_type = "date"

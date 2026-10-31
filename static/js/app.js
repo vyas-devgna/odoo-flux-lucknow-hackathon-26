@@ -42,4 +42,4 @@ if (bulk) {
   document.addEventListener('change', e => { if (e.target === all) boxes().forEach(b => b.checked = all.checked); if (e.target.matches('input.cb')) sync(); sync(); });
 }
 // clickable rows
-document.addEventListener('click', e => { const r = e.target.closest('[data-href]'); if (r && !e.target.closest('a,button,input,select,label,form')) location.href = r.dataset.href; });
+document.addEventListener('click', e => { const r = e.target.closest('[data-href]'); if (r && !e.target.closest('a,button,input,select,label')) location.href = r.dataset.href; });

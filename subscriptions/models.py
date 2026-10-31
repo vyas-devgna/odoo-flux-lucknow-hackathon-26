@@ -116,6 +116,19 @@ class Subscription(models.Model):
         labels = {"confirm": "Accept quotation", "pause": "Pause", "resume": "Resume", "renew": "Renew", "close": "Cancel subscription"}
         return [(a, labels[a]) for a in labels if self.can(a) and (a != "confirm" or self.state == self.QUOTATION)]
 
+    NEXT_STEP = {
+        "draft": "Review the lines, then send the quotation to the customer.",
+        "quotation": "Waiting for the customer to accept. Confirm it once they have.",
+        "confirmed": "Accepted. Activate it to start billing from the start date.",
+        "active": "Billing runs automatically. Seat or add-on changes apply from the next invoice.",
+        "paused": "Billing is on hold. Resume to continue from the next unbilled period.",
+        "closed": "This term has ended. Renew it to start a new linked term.",
+    }
+
+    @property
+    def next_step(self):
+        return self.NEXT_STEP[self.state]
+
     @property
     def can_edit(self):
         return self.state != self.CLOSED

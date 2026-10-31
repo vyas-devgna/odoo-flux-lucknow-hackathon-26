@@ -111,7 +111,7 @@ class Command(BaseCommand):
             if newest and inv.issue_date >= today - timedelta(days=3):
                 continue  # latest invoices stay as drafts for the demo ("review and confirm")
             billing.confirm_invoice(inv)
-            if newest and inv.customer.email in {'neha@bluepeak.test', 'vikram@sethi.test', 'dev@northwind.test'} and inv.issue_date >= today - timedelta(days=40):
+            if inv.customer.email in {'neha@bluepeak.test', 'vikram@sethi.test', 'maya@acme.test'} and inv.issue_date >= today - timedelta(days=40):
                 continue  # recent, still within terms: outstanding but not overdue
             if inv.customer.email in stale and rnd.random() < 0.7 and not newest:
                 continue

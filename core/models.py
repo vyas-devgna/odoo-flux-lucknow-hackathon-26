@@ -31,6 +31,8 @@ class CompanySettings(models.Model):
     invoice_footer = models.CharField(max_length=300, blank=True, default="Thank you for your business.")
     default_payment_terms = models.CharField(max_length=10, default="net15", choices=[("immediate", "Immediate"), ("net15", "Net 15"), ("net30", "Net 30"), ("net60", "Net 60")])
     online_payments = models.BooleanField("Customer \"Pay now\" (test mode)", default=True, help_text="Simulated checkout: records a payment without moving real money. Disable once a real gateway is connected.")
+    auto_confirm_invoices = models.BooleanField("Confirm invoices automatically", default=False, help_text="Billing runs create invoices already confirmed instead of drafts.")
+    auto_email_invoices = models.BooleanField("Email invoices automatically", default=False, help_text="Implies confirmation. Customers receive each invoice the moment it is created.")
     reminder_days_before_renewal = models.PositiveIntegerField("Renewal notice (days before expiry)", default=14)
     reminder_repeat_days = models.PositiveIntegerField("Repeat overdue reminders every (days)", default=7)
 
