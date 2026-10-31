@@ -122,6 +122,8 @@ class StyledFormMixin:
         super().__init__(*a, **kw)
         for f in self.fields.values():
             w = f.widget
+            if f.label and not w.is_hidden:
+                w.attrs.setdefault("aria-label", str(f.label))
             if isinstance(w, forms.CheckboxInput):
                 w.attrs["class"] = "switch"
             elif isinstance(w, (forms.CheckboxSelectMultiple, forms.RadioSelect)):
